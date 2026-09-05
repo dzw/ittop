@@ -1,0 +1,66 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "dev",
+      "type": "npm",
+      "script": "dev",
+      "group": { "kind": "build", "isDefault": true },
+      "isBackground": true,
+      "problemMatcher": [],
+      "detail": "electron-vite dev: 启动主进程/预加载/渲染进程开发服务器(带 HMR)"
+    },
+    {
+      "label": "build",
+      "type": "npm",
+      "script": "build",
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "electron-vite build: 构建 out/(main/preload/renderer)"
+    },
+    {
+      "label": "build:win",
+      "type": "npm",
+      "script": "build:win",
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "构建 + electron-builder 打包 Windows 安装包"
+    },
+    {
+      "label": "start",
+      "type": "npm",
+      "script": "start",
+      "problemMatcher": [],
+      "detail": "electron-vite preview: 运行构建产物(需先 build)"
+    },
+    {
+      "label": "typecheck",
+      "type": "npm",
+      "script": "typecheck",
+      "group": "build",
+      "problemMatcher": ["$tsc"],
+      "detail": "tsc --noEmit 分别校验 node(main/preload) 与 web(renderer)"
+    },
+    {
+      "label": "lint",
+      "type": "npm",
+      "script": "lint",
+      "problemMatcher": ["$eslint-stylish"],
+      "detail": "eslint 检查 .ts/.tsx"
+    },
+    {
+      "label": "test",
+      "type": "npm",
+      "script": "test",
+      "problemMatcher": [],
+      "detail": "vitest run 单元测试"
+    },
+    {
+      "label": "test:e2e",
+      "type": "npm",
+      "script": "test:e2e",
+      "problemMatcher": [],
+      "detail": "electron-vite build + playwright test 端到端测试"
+    }
+  ]
+}

@@ -5,6 +5,8 @@ export interface Terminal {
   name: string
   projectPath: string
   startCommand: string
+  /** Whether opening this terminal auto-runs its start command (false = plain shell). */
+  autoRunCommand: boolean
   order: number
 }
 
@@ -34,6 +36,7 @@ export interface AppSettings {
   defaultStartCommand: string
   idleDebounceMs: number
   paneColFractions: number[]
+  paneRowFractions: number[]
 }
 
 /** The subset of AppSettings worth offering to restore from someone else's export — pure
@@ -59,6 +62,14 @@ export interface CreateTerminalInput {
   name: string
   projectPath: string
   startCommand?: string
+  autoRunCommand?: boolean
+}
+
+export interface UpdateTerminalInput {
+  name: string
+  projectPath: string
+  startCommand: string
+  autoRunCommand: boolean
 }
 
 export interface HookEventPayload {
@@ -94,6 +105,7 @@ export const IPC = {
   workspacesImportCommit: 'workspaces:importCommit',
 
   terminalCreate: 'terminal:create',
+  terminalUpdate: 'terminal:update',
   terminalRename: 'terminal:rename',
   terminalDelete: 'terminal:delete',
   terminalReorder: 'terminal:reorder',
@@ -106,6 +118,7 @@ export const IPC = {
 
   fsListDir: 'fs:listDir',
   fsReadFile: 'fs:readFile',
+  fsReveal: 'fs:reveal',
   previewOpen: 'preview:open',
 
   ptyStart: 'pty:start',
@@ -132,7 +145,7 @@ export const IPC = {
 
 export interface ImportPreviewEntry {
   name: string
-  terminals: Array<{ name: string; projectPath: string; startCommand: string }>
+  terminals: Array<{ name: string; projectPath: string; startCommand: string; autoRunCommand?: boolean }>
 }
 
 export type ExportResult =

@@ -13,6 +13,7 @@ import type {
   Terminal,
   TerminalRuntimeState,
   UpdateStatus,
+  UpdateTerminalInput,
   Workspace
 } from '../shared/types'
 
@@ -40,6 +41,8 @@ const api = {
   createTerminal: (input: CreateTerminalInput): Promise<Terminal | null> =>
     ipcRenderer.invoke(IPC.terminalCreate, input),
   renameTerminal: (id: string, name: string): Promise<void> => ipcRenderer.invoke(IPC.terminalRename, id, name),
+  updateTerminal: (id: string, input: UpdateTerminalInput): Promise<void> =>
+    ipcRenderer.invoke(IPC.terminalUpdate, id, input),
   deleteTerminal: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalDelete, id),
   reorderTerminals: (workspaceId: string, orderedIds: string[]): Promise<void> =>
     ipcRenderer.invoke(IPC.terminalReorder, workspaceId, orderedIds),
@@ -54,6 +57,7 @@ const api = {
 
   listDir: (path: string): Promise<ListDirResult> => ipcRenderer.invoke(IPC.fsListDir, path),
   readFile: (path: string): Promise<ReadFileResult> => ipcRenderer.invoke(IPC.fsReadFile, path),
+  revealFolder: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsReveal, path),
   openFilePreviewWindow: (path: string): Promise<void> => ipcRenderer.invoke(IPC.previewOpen, path),
 
   ptyStart: (id: string, cols: number, rows: number): Promise<void> =>

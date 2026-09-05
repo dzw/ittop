@@ -1,0 +1,84 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Main Process",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron-vite",
+      "windows": {
+        "runtimeExecutable": "${workspaceFolder}/node_modules/.bin/electron-vite.cmd"
+      },
+      "runtimeArgs": ["--sourcemap"],
+      "env": {
+        "ELECTRON_RENDERER_URL": "http://localhost:5173",
+        "REMOTE_DEBUGGING_PORT": "9222"
+      },
+      "console": "integratedTerminal",
+      "sourceMaps": true,
+      "resolveSourceMapLocations": [
+        "${workspaceFolder}/src/**/*.ts",
+        "${workspaceFolder}/out/**/*.js"
+      ],
+      "presentation": {
+        "group": "debug",
+        "order": 1
+      },
+      "detail": "electron-vite dev + node inspector:可在 src/main 源码打断点调试主进程"
+    },
+    {
+      "name": "Debug Renderer Process",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/src/renderer",
+      "timeout": 60000,
+      "presentation": {
+        "group": "debug",
+        "order": 2,
+        "hidden": true
+      },
+      "detail": "通过 --remote-debugging-port=9222 附加调试渲染进程(需先启动 Debug Main Process)"
+    },
+    {
+      "name": "Run App (dev)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run dev",
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ELECTRON_RENDERER_URL": "http://localhost:5173"
+      },
+      "presentation": {
+        "group": "run",
+        "order": 1
+      },
+      "detail": "等效 npm run dev:开发模式运行(HMR、无调试器)"
+    },
+    {
+      "name": "Run App (preview)",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm start",
+      "cwd": "${workspaceFolder}",
+      "presentation": {
+        "group": "run",
+        "order": 2
+      },
+      "detail": "等效 npm start:运行上一次 build 的产物(需先执行 Task: build)"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Debug All (Main + Renderer)",
+      "configurations": ["Debug Main Process", "Debug Renderer Process"],
+      "stopAll": true,
+      "presentation": {
+        "group": "debug",
+        "order": 0
+      },
+      "detail": "同时调试主进程与渲染进程"
+    }
+  ]
+}

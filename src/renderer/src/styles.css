@@ -622,6 +622,22 @@ body,
   border-radius: 4px;
 }
 
+.row-resizer {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  height: 10px;
+  margin-top: -5px;
+  cursor: row-resize;
+  z-index: 6;
+}
+
+.row-resizer:hover,
+.row-resizer:active {
+  background: color-mix(in srgb, var(--mono-accent) 35%, transparent);
+  border-radius: 4px;
+}
+
 .main-toolbar {
   position: absolute;
   top: 8px;
@@ -1004,6 +1020,40 @@ button {
   align-items: center;
   justify-content: center;
   z-index: 100;
+}
+
+.context-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 91;
+  min-width: 150px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.context-menu button {
+  background: transparent;
+  border: none;
+  color: var(--text);
+  text-align: left;
+  padding: 6px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.context-menu button:hover {
+  background: var(--bg-active);
 }
 
 .modal {

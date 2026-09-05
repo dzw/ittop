@@ -7,6 +7,7 @@ import ShortcutsOverlay from './components/ShortcutsOverlay'
 import CommandPalette from './components/CommandPalette'
 import FileExplorer from './components/FileExplorer'
 import { useAppStore } from './store/useAppStore'
+import type { Terminal } from '../../shared/types'
 
 export default function App(): React.JSX.Element {
   const loaded = useAppStore((s) => s.loaded)
@@ -29,14 +30,19 @@ export default function App(): React.JSX.Element {
 
   const [dialogOpen, setDialogOpen] = useState(false)
   const [terminalDialogWorkspaceId, setTerminalDialogWorkspaceId] = useState<string | null>(null)
+  const [editingTerminal, setEditingTerminal] = useState<{ workspaceId: string; terminal: Terminal } | null>(null)
   const [filesOpen, setFilesOpen] = useState(false)
   const [showRestorePrompt, setShowRestorePrompt] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [toasts, setToasts] = useState<Array<{ id: string; terminalId: string; name: string }>>([])
   const [colFractions, setColFractions] = useState<number[]>([1])
+  const [rowFractions, setRowFractions] = useState<number[] | null>(null)
   const [dividerLefts, setDividerLefts] = useState<number[]>([])
+  const [dividerTops, setDividerTops] = useState<number[]>([])
   const colFractionsRef = useRef(colFractions)
+  const rowFractionsRef = useRef(rowFractions)
+  const rowCellRefs = useRef<Map<number, HTMLDivElement>>(new Map())
 
   useEffect(() => {
     void load()
@@ -195,35 +201,92 @@ export default function App(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cols])
 
+  // Same for row heights, but the remembered layout only re-applies once (when the row count
+  // first becomes 2+). From then on the focus zoom and the row dividers own the live state, so
+  // we no longer overwrite it on every layout change.
+  useEffect(() => {
+    if (rows < 2) {
+      setRowFractions(null)
+      return
+    }
+    setRowFractions((prev) => {
+      if (prev && prev.length === rows) return prev
+      const remembered = settings.paneRowFractions
+      return remembered.length === rows ? remembered : Array(rows).fill(1)
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows])
+
   useEffect(() => {
     colFractionsRef.current = colFractions
   }, [colFractions])
 
+  useEffect(() => {
+    rowFractionsRef.current = rowFractions
+  }, [rowFractions])
+
+  // The effective grid row tracks: the live state (initialized above to even/remembered) once
+  // we have 2+ rows, or all-even before that.
+  const rowTracks = rowFractions && rowFractions.length === rows ? rowFractions : Array(rows).fill(1)
+
+  // Rows are focus-aware: the focused terminal's row grows to 70% of the grid height and the
+  // other rows share the remaining 30%. Terminals tile the grid row-major, so the focused
+  // terminal's row is just floor(index / cols). A row drag "takes over" — it sets the live
+  // state, so the auto behavior stops until "Reset layout" clears it.
+  useEffect(() => {
+    if (!rowFractionsRef.current || rowFractionsRef.current.length !== rows || rows < 2) return
+    if (!focusedTerminalId) return
+    const focusIndex = activeTerminalIds.indexOf(focusedTerminalId)
+    if (focusIndex === -1) return
+    const focusedRow = Math.floor(focusIndex / cols)
+    const perOther = 0.3 / (rows - 1)
+    setRowFractions(Array.from({ length: rows }, (_, i) => (i === focusedRow ? 0.7 : perOther)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedTerminalId, activeTerminalIds.join(','), rows])
+
   const gridStyle = {
     gridTemplateColumns: colFractions.map((f) => `${f}fr`).join(' '),
-    gridTemplateRows: `repeat(${rows}, 1fr)`
+    gridTemplateRows: rowTracks.map((f) => `${f}fr`).join(' ')
   }
 
+  // The vertical (column) and horizontal (row) dividers both ride on top of the grid, so one
+  // pass can re-measure both — and only write to the one that actually changed.
   const measureDividers = (): void => {
     const container = panesRef.current
-    if (!container || cols < 2) {
+    if (!container) {
       setDividerLefts([])
+      setDividerTops([])
       return
     }
     const containerRect = container.getBoundingClientRect()
-    const lefts: number[] = []
-    for (let i = 0; i < cols - 1; i++) {
-      const cell = columnCellRefs.current.get(i)
-      if (!cell) continue
-      lefts.push(cell.getBoundingClientRect().right - containerRect.left)
+    if (cols < 2) {
+      setDividerLefts([])
+    } else {
+      const lefts: number[] = []
+      for (let i = 0; i < cols - 1; i++) {
+        const cell = columnCellRefs.current.get(i)
+        if (!cell) continue
+        lefts.push(cell.getBoundingClientRect().right - containerRect.left)
+      }
+      setDividerLefts(lefts)
     }
-    setDividerLefts(lefts)
+    if (rows < 2) {
+      setDividerTops([])
+    } else {
+      const tops: number[] = []
+      for (let i = 0; i < rows - 1; i++) {
+        const cell = rowCellRefs.current.get(i)
+        if (!cell) continue
+        tops.push(cell.getBoundingClientRect().bottom - containerRect.top)
+      }
+      setDividerTops(tops)
+    }
   }
 
   useLayoutEffect(() => {
     measureDividers()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cols, colFractions, visibleCount])
+  }, [cols, rows, colFractions, rowTracks.join(','), visibleCount])
 
   useEffect(() => {
     const container = panesRef.current
@@ -232,7 +295,7 @@ export default function App(): React.JSX.Element {
     observer.observe(container)
     return () => observer.disconnect()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cols])
+  }, [cols, rows])
 
   function startColumnDrag(index: number, event: React.MouseEvent): void {
     event.preventDefault()
@@ -267,11 +330,46 @@ export default function App(): React.JSX.Element {
     window.addEventListener('mouseup', onUp)
   }
 
+  // Mirror of startColumnDrag for the horizontal (row) dividers. A row drag is what "takes
+  // over" the automatic focus zoom: from the first mouse move the rows are user-controlled.
+  function startRowDrag(index: number, event: React.MouseEvent): void {
+    event.preventDefault()
+    const container = panesRef.current
+    if (!container) return
+    const containerHeight = container.getBoundingClientRect().height
+    const startY = event.clientY
+    const startFractions = [...(rowFractions && rowFractions.length === rows ? rowFractions : Array(rows).fill(1))]
+    const totalFraction = startFractions.reduce((a, b) => a + b, 0)
+
+    function onMove(moveEvent: MouseEvent): void {
+      const deltaFraction = ((moveEvent.clientY - startY) / containerHeight) * totalFraction
+      const minFraction = totalFraction * 0.12
+      const next = [...startFractions]
+      next[index] = Math.max(minFraction, startFractions[index] + deltaFraction)
+      next[index + 1] = Math.max(minFraction, startFractions[index + 1] - deltaFraction)
+      const combined = startFractions[index] + startFractions[index + 1]
+      const overflow = next[index] + next[index + 1] - combined
+      if (overflow !== 0) {
+        if (next[index] > next[index + 1]) next[index] -= overflow
+        else next[index + 1] -= overflow
+      }
+      setRowFractions(next)
+    }
+    function onUp(): void {
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+      updateAppSettings({ paneRowFractions: rowFractionsRef.current ?? [] })
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   return (
     <div className="app-shell">
       <Sidebar
         onNewWorkspace={() => setDialogOpen(true)}
         onNewTerminal={(workspaceId) => setTerminalDialogWorkspaceId(workspaceId)}
+        onEditTerminal={(workspaceId, terminal) => setEditingTerminal({ workspaceId, terminal })}
       />
       <div className="main-area">
         {workspaces.length === 0 && (
@@ -304,14 +402,16 @@ export default function App(): React.JSX.Element {
           </div>
         )}
         <div className="main-toolbar">
-          {cols > 1 && (
+          {(cols > 1 || rows > 1) && (
             <button
               className="auto-arrange-button"
-              title="Reset column widths"
+              title="Reset the column and row sizes"
               onClick={() => {
-                const evenFractions = Array(cols).fill(1)
-                setColFractions(evenFractions)
-                updateAppSettings({ paneColFractions: evenFractions })
+                const evenCols = Array(cols).fill(1)
+                const evenRows = Array(rows).fill(1)
+                setColFractions(evenCols)
+                setRowFractions(evenRows)
+                updateAppSettings({ paneColFractions: evenCols, paneRowFractions: evenRows })
               }}
             >
               ⊞ Reset layout
@@ -334,11 +434,13 @@ export default function App(): React.JSX.Element {
             const visibleIndex = visible ? activeTerminalIds.indexOf(terminal.id) : -1
             const isActive = visible && terminal.id === focusedTerminalId
             const isFirstRowCell = visibleIndex !== -1 && visibleIndex < cols
+            const isFirstColCell = visibleIndex !== -1 && visibleIndex % cols === 0
             return (
               <TerminalPane
                 key={terminal.id}
                 ref={(el) => {
                   if (isFirstRowCell && el) columnCellRefs.current.set(visibleIndex, el)
+                  if (isFirstColCell && el) rowCellRefs.current.set(visibleIndex, el)
                 }}
                 terminalId={terminal.id}
                 terminalName={terminal.name}
@@ -358,12 +460,28 @@ export default function App(): React.JSX.Element {
                 onMouseDown={(e) => startColumnDrag(i, e)}
               />
             ))}
+          {rows > 1 &&
+            dividerTops.map((top, i) => (
+              <div
+                key={i}
+                className="row-resizer"
+                style={{ top }}
+                onMouseDown={(e) => startRowDrag(i, e)}
+              />
+            ))}
         </div>
       </div>
       {filesOpen && <FileExplorer onClose={() => setFilesOpen(false)} />}
       {dialogOpen && <WorkspaceDialog onClose={() => setDialogOpen(false)} />}
       {terminalDialogWorkspaceId && (
         <TerminalDialog workspaceId={terminalDialogWorkspaceId} onClose={() => setTerminalDialogWorkspaceId(null)} />
+      )}
+      {editingTerminal && (
+        <TerminalDialog
+          workspaceId={editingTerminal.workspaceId}
+          terminal={editingTerminal.terminal}
+          onClose={() => setEditingTerminal(null)}
+        />
       )}
       {showRestorePrompt && (
         <div className="modal-overlay">

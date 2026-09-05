@@ -8,6 +8,7 @@ import SettingsModal from './SettingsModal'
 interface Props {
   onNewWorkspace: () => void
   onNewTerminal: (workspaceId: string) => void
+  onEditTerminal: (workspaceId: string, terminal: Terminal) => void
 }
 
 function statusClass(status: TerminalStatus): string {
@@ -40,7 +41,7 @@ function matches(query: string, ...fields: Array<string | null | undefined>): bo
 
 type SidebarTab = 'activity' | 'workspaces'
 
-export default function Sidebar({ onNewWorkspace, onNewTerminal }: Props): React.JSX.Element {
+export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal }: Props): React.JSX.Element {
   const workspaces = useAppStore((s) => s.workspaces)
   const runtime = useAppStore((s) => s.runtime)
   const gitBranches = useAppStore((s) => s.gitBranches)
@@ -68,6 +69,12 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal }: Props): React
   const [confirmDeleteTerminal, setConfirmDeleteTerminal] = useState<{ workspaceId: string; terminal: Terminal } | null>(
     null
   )
+  const [terminalMenu, setTerminalMenu] = useState<{
+    x: number
+    y: number
+    workspaceId: string
+    terminal: Terminal
+  } | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [collapsedWorkspaces, setCollapsedWorkspaces] = useState<Set<string>>(() => {
     try {
@@ -390,6 +397,10 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal }: Props): React
                         key={terminal.id}
                         className="terminal-item"
                         onClick={() => focusTerminal(terminal.id)}
+                        onContextMenu={(e) => {
+                          e.preventDefault()
+                          setTerminalMenu({ x: e.clientX, y: e.clientY, workspaceId: workspace.id, terminal })
+                        }}
                         title={terminal.projectPath}
                       >
                         <span className={statusClass(rt?.status ?? 'idle')} />
@@ -457,6 +468,37 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal }: Props): React
         </div>
       )}
       <div className="sidebar-resizer" onMouseDown={startResize} />
+      {terminalMenu && (
+        <>
+          <div className="context-menu-backdrop" onClick={() => setTerminalMenu(null)} onContextMenu={(e) => {
+            e.preventDefault()
+            setTerminalMenu(null)
+          }} />
+          <div
+            className="context-menu"
+            style={{ left: terminalMenu.x, top: terminalMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              title="Open the project folder in the system file manager"
+              onClick={() => {
+                void window.api.revealFolder(terminalMenu.terminal.projectPath)
+                setTerminalMenu(null)
+              }}
+            >
+              Explorer
+            </button>
+            <button
+              onClick={() => {
+                onEditTerminal(terminalMenu.workspaceId, terminalMenu.terminal)
+                setTerminalMenu(null)
+              }}
+            >
+              ✎ Edit
+            </button>
+          </div>
+        </>
+      )}
       {confirmDeleteWorkspace && (
         <div className="modal-overlay" onClick={() => setConfirmDeleteWorkspace(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>

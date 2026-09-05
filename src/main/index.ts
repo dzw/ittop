@@ -25,6 +25,7 @@ import type {
   ReadFileResult,
   RestorableSettings,
   Terminal,
+  UpdateTerminalInput,
   Workspace
 } from '../shared/types'
 
@@ -366,6 +367,7 @@ function registerIpcHandlers(): void {
       name: input.name,
       projectPath: input.projectPath,
       startCommand: input.startCommand?.trim() || state.settings.defaultStartCommand || 'claude',
+      autoRunCommand: input.autoRunCommand ?? false,
       order: workspace.terminals.length
     }
     const workspaces = state.workspaces.map((w) =>
@@ -380,6 +382,25 @@ function registerIpcHandlers(): void {
     const workspaces = state.workspaces.map((w) => ({
       ...w,
       terminals: w.terminals.map((t) => (t.id === terminalId ? { ...t, name } : t))
+    }))
+    store.save({ ...state, workspaces })
+  })
+
+  ipcMain.handle(IPC.terminalUpdate, (_event, terminalId: string, input: UpdateTerminalInput) => {
+    const state = store.getState()
+    const workspaces = state.workspaces.map((w) => ({
+      ...w,
+      terminals: w.terminals.map((t) =>
+        t.id === terminalId
+          ? {
+              ...t,
+              name: input.name,
+              projectPath: input.projectPath,
+              startCommand: input.startCommand,
+              autoRunCommand: input.autoRunCommand
+            }
+          : t
+      )
     }))
     store.save({ ...state, workspaces })
   })
@@ -493,7 +514,8 @@ function registerIpcHandlers(): void {
               .map(({ t, path }) => ({
                 name: asString(t.name) || 'Terminal',
                 projectPath: path,
-                startCommand: asString(t.startCommand) || defaultCmd
+                startCommand: asString(t.startCommand) || defaultCmd,
+                autoRunCommand: typeof t.autoRunCommand === 'boolean' ? (t.autoRunCommand as boolean) : undefined
               }))
             return terminals.length > 0 ? { name, terminals } : null
           }
@@ -551,6 +573,7 @@ function registerIpcHandlers(): void {
           name: t.name,
           projectPath: t.projectPath,
           startCommand: t.startCommand,
+          autoRunCommand: typeof t.autoRunCommand === 'boolean' ? t.autoRunCommand : true,
           order: ti
         }))
       }))
@@ -612,7 +635,11 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.ptyStart, (_event, terminalId: string, cols: number, rows: number) => {
     const found = findTerminal(terminalId)
     if (!found) return
-    ptyManager.start(terminalId, found.terminal.projectPath, found.terminal.startCommand, cols, rows)
+    // autoRunCommand === false means "open a plain shell, don't type the start command" — the
+    // user runs it manually when they're ready. Explicit-false test keeps legacy/imported
+    // terminals (no flag) on their old always-auto-run behavior.
+    const command = found.terminal.autoRunCommand === false ? '' : found.terminal.startCommand
+    ptyManager.start(terminalId, found.terminal.projectPath, command, cols, rows)
     unreadCounts.set(terminalId, 0)
   })
 
@@ -628,6 +655,13 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle(IPC.previewOpen, (_event, filePath: string) => {
     createPreviewWindow(filePath)
+  })
+
+  // Open a folder in the OS file manager (Windows Explorer etc.). shell.openPath resolves
+  // after the manager launches and returns '' on success, otherwise an error message.
+  ipcMain.handle(IPC.fsReveal, async (_event, folderPath: string) => {
+    const error = await shell.openPath(folderPath)
+    if (error) console.error(`openPath(${folderPath}) failed: ${error}`)
   })
 
   ipcMain.handle(IPC.appGetVersion, () => app.getVersion())

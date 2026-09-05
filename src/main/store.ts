@@ -18,7 +18,8 @@ function defaultState(): PersistedState {
       notificationsEnabled: true,
       defaultStartCommand: 'claude',
       idleDebounceMs: 1200,
-      paneColFractions: []
+      paneColFractions: [],
+      paneRowFractions: []
     }
   }
 }
@@ -36,8 +37,14 @@ interface LegacyWorkspace {
 }
 
 function migrateWorkspace(raw: LegacyWorkspace): Workspace {
+  // Terminals persisted before the autoRunCommand flag existed always auto-ran their start
+  // command; default missing flags to true so existing setups keep behaving identically.
+  const normalizeTerminal = (t: Terminal): Terminal => ({
+    ...t,
+    autoRunCommand: typeof t.autoRunCommand === 'boolean' ? t.autoRunCommand : true
+  })
   if (Array.isArray(raw.terminals)) {
-    return { id: raw.id, name: raw.name, order: raw.order, terminals: raw.terminals }
+    return { id: raw.id, name: raw.name, order: raw.order, terminals: raw.terminals.map(normalizeTerminal) }
   }
   const terminals: Terminal[] =
     typeof raw.projectPath === 'string'
@@ -47,6 +54,7 @@ function migrateWorkspace(raw: LegacyWorkspace): Workspace {
             name: raw.name,
             projectPath: raw.projectPath,
             startCommand: raw.startCommand ?? 'claude',
+            autoRunCommand: true,
             order: 0
           }
         ]

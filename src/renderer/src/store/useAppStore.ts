@@ -1,5 +1,12 @@
 import { create } from 'zustand'
-import type { AppSettings, Terminal, TerminalRuntimeState, TerminalStatus, Workspace } from '../../../shared/types'
+import type {
+  AppSettings,
+  Terminal,
+  TerminalRuntimeState,
+  TerminalStatus,
+  UpdateTerminalInput,
+  Workspace
+} from '../../../shared/types'
 
 interface AppState {
   loaded: boolean
@@ -25,6 +32,7 @@ interface AppState {
   closeWorkspace: (id: string) => void
 
   addTerminal: (workspaceId: string, terminal: Terminal) => void
+  updateTerminal: (workspaceId: string, terminalId: string, patch: UpdateTerminalInput) => void
   renameTerminal: (workspaceId: string, terminalId: string, name: string) => void
   removeTerminal: (workspaceId: string, terminalId: string) => void
   reorderTerminals: (workspaceId: string, orderedTerminalIds: string[]) => void
@@ -57,7 +65,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     notificationsEnabled: true,
     defaultStartCommand: 'claude',
     idleDebounceMs: 1200,
-    paneColFractions: []
+    paneColFractions: [],
+    paneRowFractions: []
   },
   openedWorkspaceIds: new Set(),
   focusedTerminalId: null,
@@ -176,6 +185,17 @@ export const useAppStore = create<AppState>((set, get) => ({
       workspaces: state.workspaces.map((w) =>
         w.id === workspaceId
           ? { ...w, terminals: w.terminals.map((t) => (t.id === terminalId ? { ...t, name } : t)) }
+          : w
+      )
+    }))
+  },
+
+  updateTerminal: (workspaceId, terminalId, patch) => {
+    void window.api.updateTerminal(terminalId, patch)
+    set((state) => ({
+      workspaces: state.workspaces.map((w) =>
+        w.id === workspaceId
+          ? { ...w, terminals: w.terminals.map((t) => (t.id === terminalId ? { ...t, ...patch } : t)) }
           : w
       )
     }))
