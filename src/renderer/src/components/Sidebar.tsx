@@ -50,6 +50,7 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal 
   const collapsed = settings.sidebarCollapsed
   const openWorkspace = useAppStore((s) => s.openWorkspace)
   const focusTerminal = useAppStore((s) => s.focusTerminal)
+  const focusedTerminalId = useAppStore((s) => s.focusedTerminalId)
   const setSidebarWidth = useAppStore((s) => s.setSidebarWidth)
   const toggleSidebarCollapsed = useAppStore((s) => s.toggleSidebarCollapsed)
   const renameWorkspace = useAppStore((s) => s.renameWorkspace)
@@ -395,7 +396,7 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal 
                     return (
                       <div
                         key={terminal.id}
-                        className="terminal-item"
+                        className={`terminal-item${focusedTerminalId === terminal.id ? ' active' : ''}`}
                         onClick={() => focusTerminal(terminal.id)}
                         onContextMenu={(e) => {
                           e.preventDefault()
@@ -487,6 +488,24 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal 
               }}
             >
               Explorer
+            </button>
+            <button
+              title="Open an independent PowerShell window in the project folder"
+              onClick={() => {
+                void window.api.openPowerShell(terminalMenu.terminal.projectPath)
+                setTerminalMenu(null)
+              }}
+            >
+              PS
+            </button>
+            <button
+              title="Open the project folder in VS Code"
+              onClick={() => {
+                void window.api.openInVSCode(terminalMenu.terminal.projectPath)
+                setTerminalMenu(null)
+              }}
+            >
+              Open in VS Code
             </button>
             <button
               onClick={() => {

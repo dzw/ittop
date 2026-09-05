@@ -119,6 +119,8 @@ export const IPC = {
   fsListDir: 'fs:listDir',
   fsReadFile: 'fs:readFile',
   fsReveal: 'fs:reveal',
+  fsOpenPowerShell: 'fs:openPowerShell',
+  fsOpenVSCode: 'fs:openVSCode',
   previewOpen: 'preview:open',
 
   ptyStart: 'pty:start',

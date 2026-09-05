@@ -176,6 +176,7 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   const rendererReadyRef = useRef(false)
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+  const [started, setStarted] = useState(false)
   const markPtyStarted = useAppStore((s) => s.markPtyStarted)
   const focusTerminal = useAppStore((s) => s.focusTerminal)
   const setPreview = useAppStore((s) => s.setPreview)
@@ -251,11 +252,6 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
     const rafId = requestAnimationFrame(() => {
       rendererReadyRef.current = true
       safeFit()
-
-      if (!startedRef.current) {
-        startedRef.current = true
-        void window.api.ptyStart(terminalId, term.cols, term.rows).then(() => markPtyStarted(terminalId))
-      }
     })
 
     const dataDispose = term.onData((data) => {
@@ -327,6 +323,15 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
         // active — auto-focusing it here would immediately flip active back to it and hide the
         // pane that's supposed to stay active, defeating the pin.
         if (isActive) termRef.current?.focus()
+        // Sessions are lazy: a terminal's pty starts only when it becomes the focused pane
+        // (clicked in the grid or in the sidebar) — not when its workspace mounts. Before
+        // that, the pane shows a "click to start" affordance and no shell is spawned.
+        const term = termRef.current
+        if (isActive && !startedRef.current && rendererReadyRef.current && term) {
+          startedRef.current = true
+          setStarted(true)
+          void window.api.ptyStart(terminalId, term.cols, term.rows).then(() => markPtyStarted(terminalId))
+        }
       })
     }
   }, [visible, isActive])
@@ -375,7 +380,14 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
           <button onClick={() => setSearchOpen(false)}>✕</button>
         </div>
       )}
-      <div className="terminal-container" ref={containerRef} tabIndex={0} />
+      <div className="terminal-body">
+        <div className="terminal-container" ref={containerRef} tabIndex={0} />
+        {visible && !started && (
+          <div className="terminal-start-overlay">
+            <button onClick={() => focusTerminal(terminalId)}>▶ Click to start this session</button>
+          </div>
+        )}
+      </div>
     </div>
   )
 })

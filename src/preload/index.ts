@@ -58,6 +58,8 @@ const api = {
   listDir: (path: string): Promise<ListDirResult> => ipcRenderer.invoke(IPC.fsListDir, path),
   readFile: (path: string): Promise<ReadFileResult> => ipcRenderer.invoke(IPC.fsReadFile, path),
   revealFolder: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsReveal, path),
+  openPowerShell: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsOpenPowerShell, path),
+  openInVSCode: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsOpenVSCode, path),
   openFilePreviewWindow: (path: string): Promise<void> => ipcRenderer.invoke(IPC.previewOpen, path),
 
   ptyStart: (id: string, cols: number, rows: number): Promise<void> =>

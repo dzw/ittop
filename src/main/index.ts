@@ -1,7 +1,8 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, Notification, session, Tray, Menu, nativeImage } from 'electron'
 import { join } from 'path'
 import { pathToFileURL } from 'url'
-import { readFileSync, writeFileSync, promises as fsPromises } from 'fs'
+import { existsSync, readFileSync, writeFileSync, promises as fsPromises } from 'fs'
+import { spawn } from 'child_process'
 import { v4 as uuidv4 } from 'uuid'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -662,6 +663,70 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.fsReveal, async (_event, folderPath: string) => {
     const error = await shell.openPath(folderPath)
     if (error) console.error(`openPath(${folderPath}) failed: ${error}`)
+  })
+
+  // Open an INDEPENDENT PowerShell window rooted at folderPath (Windows only). A bare
+  // spawn of powershell.exe inherits no console and its NUL stdin makes PowerShell exit
+  // immediately — `cmd /c start` instead allocates a brand-new console window for it, and
+  // the new window inherits cmd's cwd so the prompt starts in folderPath. -NoExit keeps the
+  // session open no matter how stdio is wired up.
+  ipcMain.handle(IPC.fsOpenPowerShell, (_event, folderPath: string) => {
+    if (process.platform !== 'win32') {
+      console.warn(`fs:openPowerShell is only supported on Windows (requested for ${folderPath})`)
+      return
+    }
+    try {
+      const proc = spawn('cmd.exe', ['/c', 'start', 'powershell.exe', '-NoExit'], {
+        cwd: folderPath,
+        detached: true,
+        stdio: 'ignore',
+        windowsHide: false
+      })
+      proc.on('error', (err) => console.error(`powershell spawn failed: ${err.message}`))
+      proc.unref()
+    } catch (err) {
+      console.error(`powershell spawn failed for ${folderPath}: ${err instanceof Error ? err.message : String(err)}`)
+    }
+  })
+
+  // Open the folder in Visual Studio Code. Prefer known install locations so it works even
+  // when the `code` CLI isn't on PATH; fall back to the `code` launcher (which on Windows is
+  // code.cmd and therefore needs a shell).
+  ipcMain.handle(IPC.fsOpenVSCode, (_event, folderPath: string) => {
+    const candidates: string[] = []
+    if (process.platform === 'win32') {
+      const local = process.env['LOCALAPPDATA']
+      const pf = process.env['ProgramFiles']
+      const pfx86 = process.env['ProgramFiles(x86)']
+      if (local) {
+        candidates.push(join(local, 'Programs', 'Microsoft VS Code', 'Code.exe'))
+        candidates.push(join(local, 'Programs', 'Microsoft VS Code Insiders', 'Code - Insiders.exe'))
+      }
+      if (pf) candidates.push(join(pf, 'Microsoft VS Code', 'Code.exe'))
+      if (pfx86) candidates.push(join(pfx86, 'Microsoft VS Code', 'Code.exe'))
+    } else if (process.platform === 'darwin') {
+      candidates.push('/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code')
+      const home = process.env['HOME']
+      if (home) {
+        candidates.push(
+          join(home, 'Applications', 'Visual Studio Code.app', 'Contents', 'Resources', 'app', 'bin', 'code')
+        )
+      }
+    } else {
+      candidates.push('/snap/bin/code', '/usr/share/code/bin/code', '/usr/bin/code')
+    }
+    const executable = candidates.find((c) => existsSync(c)) ?? null
+    try {
+      const proc = spawn(executable ?? 'code', [folderPath], {
+        detached: true,
+        stdio: 'ignore',
+        shell: process.platform === 'win32' && !executable
+      })
+      proc.on('error', (err) => console.error(`vscode spawn failed: ${err.message}`))
+      proc.unref()
+    } catch (err) {
+      console.error(`vscode spawn failed for ${folderPath}: ${err instanceof Error ? err.message : String(err)}`)
+    }
   })
 
   ipcMain.handle(IPC.appGetVersion, () => app.getVersion())

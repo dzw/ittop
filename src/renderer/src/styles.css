@@ -368,6 +368,10 @@ body,
   box-shadow: inset 2px 0 0 var(--mono-accent);
 }
 
+.terminal-item.active {
+  background: var(--bg-active);
+}
+
 .status-dot {
   width: 10px;
   height: 10px;
@@ -970,10 +974,42 @@ body,
   margin-left: auto;
 }
 
+.terminal-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .terminal-container {
   flex: 1;
   min-height: 0;
   padding: 6px 8px 2px;
+}
+
+.terminal-start-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--bg-elevated) 55%, transparent);
+}
+
+.terminal-start-overlay button {
+  background: var(--bg-active);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.terminal-start-overlay button:hover {
+  border-color: var(--mono-accent);
+  color: var(--mono-accent);
 }
 
 .terminal-search-bar {
