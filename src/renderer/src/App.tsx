@@ -14,6 +14,7 @@ export default function App(): React.JSX.Element {
   const workspaces = useAppStore((s) => s.workspaces)
   const settings = useAppStore((s) => s.settings)
   const openedWorkspaceIds = useAppStore((s) => s.openedWorkspaceIds)
+  const createdPaneIds = useAppStore((s) => s.createdPaneIds)
   const focusedTerminalId = useAppStore((s) => s.focusedTerminalId)
   const load = useAppStore((s) => s.load)
   const openWorkspace = useAppStore((s) => s.openWorkspace)
@@ -171,19 +172,33 @@ export default function App(): React.JSX.Element {
     reorderTerminals(activeWorkspace.id, order)
   }
 
-  // Every opened workspace's terminals stay mounted (so their pty/scrollback survive switching
-  // away) — only the active workspace's terminals are actually shown, tiled together in the
-  // arrangement the user set up for that workspace.
+  // Terminals whose pane was created (their terminal-item was clicked once) stay mounted so
+  // their pty/scrollback survive switching away — panes are lazy, so terminals that were
+  // never opened have no TerminalPane at all. Only the active workspace's created panes are
+  // actually shown, tiled together in the arrangement the user set up.
   const mountedTerminals = useMemo(
     () =>
       workspaces
         .filter((w) => openedWorkspaceIds.has(w.id))
-        .flatMap((w) => [...w.terminals].sort((a, b) => a.order - b.order).map((t) => ({ workspace: w, terminal: t }))),
-    [workspaces, openedWorkspaceIds]
+        .flatMap((w) =>
+          [...w.terminals]
+            .filter((t) => createdPaneIds.has(t.id))
+            .sort((a, b) => a.order - b.order)
+            .map((t) => ({ workspace: w, terminal: t }))
+        ),
+    [workspaces, openedWorkspaceIds, createdPaneIds]
   )
+  // The grid only ever contains panes the user actually opened (clicked terminal items) —
+  // unopened terminals of the active workspace don't occupy cells.
   const activeTerminalIds = useMemo(
-    () => (activeWorkspace ? [...activeWorkspace.terminals].sort((a, b) => a.order - b.order).map((t) => t.id) : []),
-    [activeWorkspace]
+    () =>
+      activeWorkspace
+        ? [...activeWorkspace.terminals]
+            .filter((t) => createdPaneIds.has(t.id))
+            .sort((a, b) => a.order - b.order)
+            .map((t) => t.id)
+        : [],
+    [activeWorkspace, createdPaneIds]
   )
   const visibleCount = activeTerminalIds.length
   const cols = useMemo(() => Math.ceil(Math.sqrt(Math.max(1, visibleCount))), [visibleCount])
@@ -382,6 +397,15 @@ export default function App(): React.JSX.Element {
             <button className="primary" onClick={() => setDialogOpen(true)}>
               Create your first workspace
             </button>
+          </div>
+        )}
+        {workspaces.length > 0 && activeWorkspace && activeWorkspace.terminals.length > 0 && activeTerminalIds.length === 0 && (
+          <div className="empty-main">
+            <div className="empty-main-mark">&gt;_</div>
+            <p>No terminals opened yet</p>
+            <p className="empty-main-sub">
+              Click a terminal in the sidebar to open its window — only the ones you click are started.
+            </p>
           </div>
         )}
         {workspaces.length > 0 && activeWorkspace && activeWorkspace.terminals.length === 0 && (

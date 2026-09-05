@@ -15,6 +15,9 @@ interface AppState {
   gitBranches: Record<string, string | null>
   settings: AppSettings
   openedWorkspaceIds: Set<string>
+  /** Terminals whose pane has been created (clicked once). Panes are lazy: opening a
+   * workspace only creates the panes the user has actually opened by clicking their item. */
+  createdPaneIds: Set<string>
   focusedTerminalId: string | null
   previews: Record<string, string>
   previewUpdatedAt: Record<string, number>
@@ -69,6 +72,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     paneRowFractions: []
   },
   openedWorkspaceIds: new Set(),
+  createdPaneIds: new Set(),
   focusedTerminalId: null,
   previews: {},
   previewUpdatedAt: {},
@@ -112,8 +116,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
       const openedWorkspaceIds = new Set(state.openedWorkspaceIds)
       openedWorkspaceIds.delete(id)
+      const createdPaneIds = new Set(state.createdPaneIds)
+      for (const t of removedWorkspace?.terminals ?? []) createdPaneIds.delete(t.id)
       const terminalMaps = pruneTerminalMaps(state, removedWorkspace?.terminals.map((t) => t.id) ?? [])
-      return { workspaces, settings, openedWorkspaceIds, ...terminalMaps }
+      return { workspaces, settings, openedWorkspaceIds, createdPaneIds, ...terminalMaps }
     }),
 
   reorderWorkspaces: (orderedIds) => {
@@ -176,7 +182,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => ({
       workspaces: state.workspaces.map((w) =>
         w.id === workspaceId ? { ...w, terminals: [...w.terminals, terminal] } : w
-      )
+      ),
+      createdPaneIds: new Set(state.createdPaneIds).add(terminal.id)
     })),
 
   renameTerminal: (workspaceId, terminalId, name) => {
@@ -203,12 +210,17 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   removeTerminal: (workspaceId, terminalId) => {
     void window.api.deleteTerminal(terminalId)
-    set((state) => ({
-      workspaces: state.workspaces.map((w) =>
-        w.id === workspaceId ? { ...w, terminals: w.terminals.filter((t) => t.id !== terminalId) } : w
-      ),
-      ...pruneTerminalMaps(state, [terminalId])
-    }))
+    set((state) => {
+      const createdPaneIds = new Set(state.createdPaneIds)
+      createdPaneIds.delete(terminalId)
+      return {
+        workspaces: state.workspaces.map((w) =>
+          w.id === workspaceId ? { ...w, terminals: w.terminals.filter((t) => t.id !== terminalId) } : w
+        ),
+        createdPaneIds,
+        ...pruneTerminalMaps(state, [terminalId])
+      }
+    })
   },
 
   reorderTerminals: (workspaceId, orderedTerminalIds) => {
@@ -234,7 +246,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     const workspace = get().workspaces.find((w) => w.terminals.some((t) => t.id === terminalId))
     if (!workspace) return
     get().openWorkspace(workspace.id)
-    set({ focusedTerminalId: terminalId })
+    // Clicking a terminal item (sidebar row / notification / focus request) is what creates
+    // its pane in the first place — nothing mounts until the user opens that terminal.
+    set((state) => ({
+      focusedTerminalId: terminalId,
+      createdPaneIds: new Set(state.createdPaneIds).add(terminalId)
+    }))
   },
 
   setSidebarWidth: (width) => {
