@@ -17,7 +17,8 @@ function TreeNode({
   dirs,
   onToggle,
   onSelectFile,
-  selectedPath
+  selectedPath,
+  onRowContextMenu
 }: {
   entry: FileEntry
   depth: number
@@ -26,6 +27,7 @@ function TreeNode({
   onToggle: (path: string) => void
   onSelectFile: (path: string) => void
   selectedPath: string | null
+  onRowContextMenu: (event: React.MouseEvent<HTMLDivElement>, entry: FileEntry) => void
 }): React.JSX.Element {
   const isOpen = entry.isDirectory && expanded.has(entry.path)
   const dirState = dirs[entry.path]
@@ -35,6 +37,7 @@ function TreeNode({
         className={`file-tree-row${selectedPath === entry.path ? ' selected' : ''}`}
         style={{ paddingLeft: 10 + depth * 14 }}
         onClick={() => (entry.isDirectory ? onToggle(entry.path) : onSelectFile(entry.path))}
+        onContextMenu={(e) => onRowContextMenu(e, entry)}
       >
         <span className="file-tree-chevron">{entry.isDirectory ? (isOpen ? '▾' : '▸') : ''}</span>
         <span className="file-tree-icon">
@@ -69,6 +72,7 @@ function TreeNode({
             onToggle={onToggle}
             onSelectFile={onSelectFile}
             selectedPath={selectedPath}
+            onRowContextMenu={onRowContextMenu}
           />
         ))}
     </div>
@@ -89,7 +93,15 @@ export default function FileExplorer({ onClose }: Props): React.JSX.Element {
   const [dirs, setDirs] = useState<Record<string, DirState>>({})
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
+  const [rowMenu, setRowMenu] = useState<{ x: number; y: number; entry: FileEntry } | null>(null)
   const resizingRef = useRef(false)
+
+  // Right-click on a tree row opens the same kind of in-DOM context menu the sidebar rows
+  // use. The backdrop/菜单 markup lives at the bottom of the panel and closes on any click.
+  function openRowMenu(event: React.MouseEvent<HTMLDivElement>, entry: FileEntry): void {
+    event.preventDefault()
+    setRowMenu({ x: event.clientX, y: event.clientY, entry })
+  }
 
   async function loadDir(path: string): Promise<void> {
     setDirs((prev) => ({ ...prev, [path]: { status: 'loading' } }))
@@ -186,11 +198,52 @@ export default function FileExplorer({ onClose }: Props): React.JSX.Element {
                 onToggle={toggleDir}
                 onSelectFile={(p) => setSelectedPath(p)}
                 selectedPath={selectedPath}
+                onRowContextMenu={openRowMenu}
               />
             ))}
         </div>
       )}
       {terminal && selectedPath && <FilePreviewContent path={selectedPath} />}
+      {rowMenu && (
+        <>
+          <div
+            className="context-menu-backdrop"
+            onClick={() => setRowMenu(null)}
+            onContextMenu={(e) => {
+              e.preventDefault()
+              setRowMenu(null)
+            }}
+          />
+          <div
+            className="context-menu"
+            style={{ left: rowMenu.x, top: rowMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              title={
+                rowMenu.entry.isDirectory
+                  ? 'Open this folder in the system file manager'
+                  : 'Reveal this file in the system file manager'
+              }
+              onClick={() => {
+                void window.api.revealFolder(rowMenu.entry.path)
+                setRowMenu(null)
+              }}
+            >
+              Explorer
+            </button>
+            <button
+              title="Copy the full path to the clipboard"
+              onClick={() => {
+                void navigator.clipboard.writeText(rowMenu.entry.path)
+                setRowMenu(null)
+              }}
+            >
+              Copy path
+            </button>
+          </div>
+        </>
+      )}
     </div>
   )
 }

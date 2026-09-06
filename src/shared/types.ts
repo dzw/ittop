@@ -37,6 +37,8 @@ export interface AppSettings {
   idleDebounceMs: number
   paneColFractions: number[]
   paneRowFractions: number[]
+  /** Auto-grow the focused terminal's row to 70% of the grid height (focus zoom). */
+  autoFocusRowZoom: boolean
 }
 
 /** The subset of AppSettings worth offering to restore from someone else's export — pure
@@ -46,6 +48,7 @@ export interface RestorableSettings {
   notificationsEnabled: boolean
   defaultStartCommand: string
   idleDebounceMs: number
+  autoFocusRowZoom: boolean
 }
 
 export interface PersistedState {

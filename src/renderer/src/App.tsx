@@ -247,8 +247,11 @@ export default function App(): React.JSX.Element {
   // Rows are focus-aware: the focused terminal's row grows to 70% of the grid height and the
   // other rows share the remaining 30%. Terminals tile the grid row-major, so the focused
   // terminal's row is just floor(index / cols). A row drag "takes over" — it sets the live
-  // state, so the auto behavior stops until "Reset layout" clears it.
+  // state, so the auto behavior stops until "Reset layout" clears it. The Settings toggle
+  // (autoFocusRowZoom) switches this auto behavior off entirely; rows then only move via drag
+  // or Reset layout.
   useEffect(() => {
+    if (!settings.autoFocusRowZoom) return
     if (!rowFractionsRef.current || rowFractionsRef.current.length !== rows || rows < 2) return
     if (!focusedTerminalId) return
     const focusIndex = activeTerminalIds.indexOf(focusedTerminalId)
@@ -257,7 +260,7 @@ export default function App(): React.JSX.Element {
     const perOther = 0.3 / (rows - 1)
     setRowFractions(Array.from({ length: rows }, (_, i) => (i === focusedRow ? 0.7 : perOther)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusedTerminalId, activeTerminalIds.join(','), rows])
+  }, [settings.autoFocusRowZoom, focusedTerminalId, activeTerminalIds.join(','), rows])
 
   const gridStyle = {
     gridTemplateColumns: colFractions.map((f) => `${f}fr`).join(' '),

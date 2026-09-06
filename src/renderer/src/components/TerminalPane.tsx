@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useRef, useState, type MouseEvent } from 'react'
 import { Terminal } from '@xterm/xterm'
 import type { ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -41,6 +41,9 @@ const XTERM_THEMES: Record<AppTheme, ITheme> = {
     background: '#ffffff',
     foreground: '#1c1e21',
     cursor: '#0f9d63',
+    selectionBackground: '#0366d6',
+    selectionForeground: '#ffffff',
+    selectionInactiveBackground: '#d0d7de',
     black: '#1c1e21',
     red: '#cf222e',
     green: '#1a7f37',
@@ -62,6 +65,9 @@ const XTERM_THEMES: Record<AppTheme, ITheme> = {
     background: '#1c1e21',
     foreground: '#d4d4d4',
     cursor: '#4ee2a3',
+    selectionBackground: '#264f78',
+    selectionForeground: '#ffffff',
+    selectionInactiveBackground: '#3a3f47',
     black: '#1c1e21',
     red: '#f85149',
     green: '#3fb950',
@@ -83,6 +89,9 @@ const XTERM_THEMES: Record<AppTheme, ITheme> = {
     background: '#282a36',
     foreground: '#f8f8f2',
     cursor: '#50fa7b',
+    selectionBackground: '#44475a',
+    selectionForeground: '#f8f8f2',
+    selectionInactiveBackground: '#343746',
     black: '#21222c',
     red: '#ff5555',
     green: '#50fa7b',
@@ -104,6 +113,9 @@ const XTERM_THEMES: Record<AppTheme, ITheme> = {
     background: '#2e3440',
     foreground: '#e5e9f0',
     cursor: '#88c0d0',
+    selectionBackground: '#434c5e',
+    selectionForeground: '#eceff4',
+    selectionInactiveBackground: '#3b4252',
     black: '#3b4252',
     red: '#bf616a',
     green: '#a3be8c',
@@ -125,6 +137,9 @@ const XTERM_THEMES: Record<AppTheme, ITheme> = {
     background: '#002b36',
     foreground: '#93a1a1',
     cursor: '#2aa198',
+    selectionBackground: '#268bd2',
+    selectionForeground: '#fdf6e3',
+    selectionInactiveBackground: '#0a4a63',
     black: '#073642',
     red: '#dc322f',
     green: '#859900',
@@ -164,6 +179,15 @@ function extractPreview(term: Terminal): string {
   return joined.length > PREVIEW_MAX_LENGTH ? `${joined.slice(0, PREVIEW_MAX_LENGTH)}…` : joined
 }
 
+// Copy the current xterm selection to the OS clipboard and drop the selection, mirroring what
+// a standalone PowerShell console (conhost QuickEdit) does when a selection is copied.
+function copySelectionToClipboard(term: Terminal): void {
+  const selected = term.getSelection()
+  if (!selected) return
+  void navigator.clipboard.writeText(selected)
+  term.clearSelection()
+}
+
 const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   { terminalId, terminalName, visible, isActive, onHeaderDragStart, onHeaderDrop },
   rootRef
@@ -183,6 +207,29 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   const gitBranch = useAppStore((s) => s.gitBranches[terminalId])
   const status = useAppStore((s) => s.runtime[terminalId]?.status)
   const theme = useAppStore((s) => s.settings.theme)
+
+  // Standalone PowerShell (conhost QuickEdit) semantics for the terminal body: with an active
+  // selection, right-click copies it to the clipboard; with no selection it pastes the
+  // clipboard at the cursor. xterm itself only moves/focuses its hidden textarea on right
+  // mousedown (no contextmenu interception on Windows), so the browser contextmenu event
+  // bubbles here untouched.
+  const handleContextMenu = (event: MouseEvent<HTMLDivElement>): void => {
+    event.preventDefault()
+    const term = termRef.current
+    if (!term || !startedRef.current) return
+    if (term.hasSelection()) {
+      copySelectionToClipboard(term)
+      return
+    }
+    void navigator.clipboard
+      .readText()
+      .then((text) => {
+        if (text) term.paste(text)
+      })
+      .catch(() => {
+        // clipboard read denied (window unfocused / permission) — right-click is a no-op then
+      })
+  }
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -222,8 +269,17 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
     // Ctrl+V regardless (PowerShell's PSReadLine does), but breaks paste entirely in programs
     // that expect the terminal to actually deliver pasted text (e.g. Claude Code's UI). Returning
     // false here for Ctrl+V skips xterm's interception so the browser paste proceeds normally.
+    // Ctrl+C follows the same conhost QuickEdit rule as right-click above: with an active
+    // selection it copies instead of sending the ^C interrupt to the running program.
     term.attachCustomKeyEventHandler((event) => {
-      if (event.type === 'keydown' && event.ctrlKey && event.key.toLowerCase() === 'v') return false
+      if (event.type !== 'keydown') return true
+      const key = event.key.toLowerCase()
+      if (event.ctrlKey && key === 'v') return false
+      if (event.ctrlKey && key === 'c' && term.hasSelection()) {
+        event.preventDefault()
+        copySelectionToClipboard(term)
+        return false
+      }
       return true
     })
 
@@ -381,7 +437,7 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
         </div>
       )}
       <div className="terminal-body">
-        <div className="terminal-container" ref={containerRef} tabIndex={0} />
+        <div className="terminal-container" ref={containerRef} tabIndex={0} onContextMenu={handleContextMenu} />
         {visible && !started && (
           <div className="terminal-start-overlay">
             <button onClick={() => focusTerminal(terminalId)}>▶ Click to start this session</button>

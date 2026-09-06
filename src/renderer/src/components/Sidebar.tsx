@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Terminal, TerminalStatus, Workspace } from '../../../shared/types'
 import { useAppStore } from '../store/useAppStore'
 import { useNow } from '../hooks/useNow'
@@ -60,8 +60,10 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal 
   const removeTerminal = useAppStore((s) => s.removeTerminal)
   const previews = useAppStore((s) => s.previews)
   const previewUpdatedAt = useAppStore((s) => s.previewUpdatedAt)
+  const loaded = useAppStore((s) => s.loaded)
 
   const [activeTab, setActiveTab] = useState<SidebarTab>('activity')
+  const [tabInitialized, setTabInitialized] = useState(false)
   const [editingWorkspaceId, setEditingWorkspaceId] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
   const [editingTerminal, setEditingTerminal] = useState<{ workspaceId: string; terminalId: string } | null>(null)
@@ -90,6 +92,15 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal 
   const dragIdRef = useRef<string | null>(null)
   const resizingRef = useRef(false)
   const now = useNow(30_000)
+
+  // On startup, land on the Workspaces tab once real workspaces exist (the store's load() is
+  // async, so the first render always sees an empty list); with nothing created yet, Activity
+  // is the more useful default. Only ever decided once — manual tab switches aren't overridden.
+  useEffect(() => {
+    if (!loaded || tabInitialized) return
+    setActiveTab(workspaces.length > 0 ? 'workspaces' : 'activity')
+    setTabInitialized(true)
+  }, [loaded, tabInitialized, workspaces.length])
 
   function toggleWorkspaceCollapsed(id: string): void {
     setCollapsedWorkspaces((prev) => {
@@ -506,6 +517,15 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal 
               }}
             >
               Open in VS Code
+            </button>
+            <button
+              title="Copy the full path to the clipboard"
+              onClick={() => {
+                void navigator.clipboard.writeText(terminalMenu.terminal.projectPath)
+                setTerminalMenu(null)
+              }}
+            >
+              Copy path
             </button>
             <button
               onClick={() => {

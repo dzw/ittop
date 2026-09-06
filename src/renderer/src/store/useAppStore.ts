@@ -69,7 +69,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     defaultStartCommand: 'claude',
     idleDebounceMs: 1200,
     paneColFractions: [],
-    paneRowFractions: []
+    paneRowFractions: [],
+    autoFocusRowZoom: true
   },
   openedWorkspaceIds: new Set(),
   createdPaneIds: new Set(),

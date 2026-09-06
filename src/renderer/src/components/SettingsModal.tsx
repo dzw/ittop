@@ -150,6 +150,15 @@ export default function SettingsModal({ onClose }: Props): React.JSX.Element {
           Show a Windows notification when a session is waiting for input
         </label>
 
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={settings.autoFocusRowZoom}
+            onChange={(e) => updateAppSettings({ autoFocusRowZoom: e.target.checked })}
+          />
+          Automatically enlarge the focused terminal&apos;s row
+        </label>
+
         <label>
           Default start command for new workspaces
           <input

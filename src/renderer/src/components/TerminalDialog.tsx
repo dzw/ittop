@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Terminal } from '../../../shared/types'
 import { useAppStore } from '../store/useAppStore'
 
@@ -9,6 +9,12 @@ interface Props {
   onClose: () => void
 }
 
+/** Last path segment ("D:\a\myproj" → "myproj"), falling back to the raw path when empty. */
+function folderNameFrom(path: string): string {
+  const parts = path.split(/[\\/]/).filter(Boolean)
+  return parts[parts.length - 1] ?? path
+}
+
 export default function TerminalDialog({ workspaceId, terminal, onClose }: Props): React.JSX.Element {
   const addTerminal = useAppStore((s) => s.addTerminal)
   const updateTerminal = useAppStore((s) => s.updateTerminal)
@@ -16,6 +22,9 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
   const defaultStartCommand = useAppStore((s) => s.settings.defaultStartCommand)
   const runtime = useAppStore((s) => s.runtime)
   const ptyStarted = terminal ? (runtime[terminal.id]?.ptyStarted ?? false) : false
+  // Auto-fill the name from the project folder until the user edits the name field himself;
+  // for an edited terminal the existing name always counts as user-set, so it's never clobbered.
+  const nameEditedRef = useRef(terminal !== undefined)
   const [name, setName] = useState(terminal?.name ?? '')
   const [projectPath, setProjectPath] = useState(terminal?.projectPath ?? '')
   const [startCommand, setStartCommand] = useState(terminal?.startCommand ?? defaultStartCommand)
@@ -26,10 +35,7 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
     const folder = await window.api.pickFolder()
     if (!folder) return
     setProjectPath(folder)
-    if (!name.trim()) {
-      const parts = folder.split(/[\\/]/).filter(Boolean)
-      setName(parts[parts.length - 1] ?? folder)
-    }
+    if (!nameEditedRef.current) setName(folderNameFrom(folder))
   }
 
   async function handleSubmit(): Promise<void> {
@@ -68,14 +74,26 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
         <h2>{terminal ? `Edit ${terminal.name}` : 'New terminal'}</h2>
         <label>
           Name
-          <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Frontend" />
+          <input
+            value={name}
+            onChange={(e) => {
+              nameEditedRef.current = true
+              setName(e.target.value)
+            }}
+            placeholder="e.g. Frontend"
+          />
         </label>
         <label>
           Project folder
           <div className="folder-row">
             <input
               value={projectPath}
-              onChange={(e) => setProjectPath(e.target.value)}
+              onChange={(e) => {
+                const value = e.target.value
+                setProjectPath(value)
+                // Keep the auto-filled name in sync with the folder until the user types a name.
+                if (!nameEditedRef.current) setName(folderNameFrom(value))
+              }}
               placeholder="C:\path\to\project"
             />
             <button onClick={() => void pickFolder()}>Browse…</button>

@@ -201,7 +201,6 @@ function createWindow(): void {
     x: bounds?.x,
     y: bounds?.y,
     show: false,
-    autoHideMenuBar: true,
     backgroundColor: '#1e1e1e',
     title: 'ittop',
     icon,
@@ -210,7 +209,8 @@ function createWindow(): void {
       sandbox: false
     }
   })
-
+  // No application menu exists on Windows/Linux (removed in whenReady), so no menu bar is
+  // attached to this window and Alt can never reveal one.
   mainWindow.on('ready-to-show', () => {
     mainWindow?.show()
     if (bounds?.maximized) mainWindow?.maximize()
@@ -260,7 +260,6 @@ function createPreviewWindow(filePath: string): void {
   const previewWindow = new BrowserWindow({
     width: 900,
     height: 800,
-    autoHideMenuBar: true,
     backgroundColor: '#1e1e1e',
     title: `ittop: ${filePath}`,
     icon,
@@ -269,7 +268,6 @@ function createPreviewWindow(filePath: string): void {
       sandbox: false
     }
   })
-
   previewWindow.webContents.setWindowOpenHandler((details) => {
     shell.openExternal(details.url)
     return { action: 'deny' }
@@ -469,7 +467,8 @@ function registerIpcHandlers(): void {
           theme: state.settings.theme,
           notificationsEnabled: state.settings.notificationsEnabled,
           defaultStartCommand: state.settings.defaultStartCommand,
-          idleDebounceMs: state.settings.idleDebounceMs
+          idleDebounceMs: state.settings.idleDebounceMs,
+          autoFocusRowZoom: state.settings.autoFocusRowZoom
         } satisfies RestorableSettings
       }
       writeFileSync(result.filePath, JSON.stringify(payload, null, 2), 'utf-8')
@@ -551,7 +550,9 @@ function registerIpcHandlers(): void {
             theme,
             notificationsEnabled: s.notificationsEnabled,
             defaultStartCommand: s.defaultStartCommand,
-            idleDebounceMs: s.idleDebounceMs
+            idleDebounceMs: s.idleDebounceMs,
+            // Older exports predate the toggle; keep their behavior (zoom on) by defaulting.
+            autoFocusRowZoom: typeof s.autoFocusRowZoom === 'boolean' ? s.autoFocusRowZoom : true
           }
         }
       }
@@ -658,11 +659,22 @@ function registerIpcHandlers(): void {
     createPreviewWindow(filePath)
   })
 
-  // Open a folder in the OS file manager (Windows Explorer etc.). shell.openPath resolves
+  // Reveal a path in the OS file manager. Directories open in Explorer; files open their
+  // containing folder with the file selected — shell.openPath on a file would launch its
+  // default handler, which is wrong for "show me where this file is". shell.openPath resolves
   // after the manager launches and returns '' on success, otherwise an error message.
-  ipcMain.handle(IPC.fsReveal, async (_event, folderPath: string) => {
-    const error = await shell.openPath(folderPath)
-    if (error) console.error(`openPath(${folderPath}) failed: ${error}`)
+  ipcMain.handle(IPC.fsReveal, async (_event, targetPath: string) => {
+    try {
+      const st = await fsPromises.stat(targetPath)
+      if (st.isFile()) {
+        shell.showItemInFolder(targetPath)
+        return
+      }
+    } catch {
+      // stat failed (deleted / disconnected network path) — fall through to opening directly
+    }
+    const error = await shell.openPath(targetPath)
+    if (error) console.error(`openPath(${targetPath}) failed: ${error}`)
   })
 
   // Open an INDEPENDENT PowerShell window rooted at folderPath (Windows only). A bare
@@ -736,6 +748,14 @@ function registerIpcHandlers(): void {
 
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.ittop.app')
+
+  // No native menu bar on Windows/Linux: setMenuBarVisibility(false) only hides it visually,
+  // and the single Alt key would still pop the hidden menu bar up. Removing the application
+  // menu entirely leaves nothing for Alt to reveal, so Alt falls through to the app/renderer.
+  // (macOS keeps its app menu — Cmd+C/V and friends live there, and Alt isn't used to open it.)
+  if (process.platform !== 'darwin') {
+    Menu.setApplicationMenu(null)
+  }
 
   // Third-party dictation tools (Wispr Flow, Spokenly, Windows Voice Access, ...) typically
   // inject recognized text via the OS accessibility tree rather than simulated keystrokes.
