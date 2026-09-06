@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { IPC } from '../shared/types'
 import type {
   AppSettings,
@@ -24,6 +24,12 @@ export interface WorkspacesGetResult {
 }
 
 const api = {
+  // Electron ≥32 removed File.path; the only supported way to resolve a dropped file's path
+  // is webUtils.getPathForFile, which must run in the preload (File objects cross the
+  // context bridge as arguments).
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
+  platform: process.platform,
+
   getWorkspaces: (): Promise<WorkspacesGetResult> => ipcRenderer.invoke(IPC.workspacesGet),
   createWorkspace: (input: CreateWorkspaceInput): Promise<Workspace> =>
     ipcRenderer.invoke(IPC.workspaceCreate, input),

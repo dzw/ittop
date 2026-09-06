@@ -1012,6 +1012,25 @@ body,
   color: var(--mono-accent);
 }
 
+/* OS file/folder drag-in target: a dashed accent ring plus a centered hint. The highlight
+   lives on the pane so it covers both the xterm canvas and the start overlay. */
+.terminal-pane.drag-over .terminal-body::after {
+  content: 'Drop to insert path';
+  position: absolute;
+  inset: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--mono-accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg-elevated) 65%, transparent);
+  color: var(--mono-accent);
+  font-size: 14px;
+  font-weight: 600;
+  pointer-events: none;
+  z-index: 10;
+}
+
 .terminal-search-bar {
   display: flex;
   gap: 6px;

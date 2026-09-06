@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useRef, useState, type MouseEvent } from 'react'
+import { forwardRef, useEffect, useRef, useState, type DragEvent, type MouseEvent } from 'react'
 import { Terminal } from '@xterm/xterm'
 import type { ITheme } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
@@ -28,6 +28,21 @@ function statusDotClass(status: string | undefined): string {
     default:
       return 'status-dot status-idle'
   }
+}
+
+// Dropped file/folder paths are inserted at the cursor like VS Code / Windows Terminal do:
+// Windows shells (PowerShell/cmd) quote with double quotes, POSIX shells with single quotes.
+// Paths with no whitespace are left bare so tab-completion and commands like `ls` read them
+// naturally.
+function quotePathForShell(path: string, isWindows: boolean): string {
+  if (isWindows) {
+    return /\s/.test(path) ? `"${path}"` : path
+  }
+  // Quote whenever anything outside the safe bare set appears (whitespace, glob chars, $, ...)
+  if (!/^[A-Za-z0-9_./:=-]+$/.test(path)) {
+    return `'${path.replace(/'/g, `'\\''`)}'`
+  }
+  return path
 }
 
 const PREVIEW_MAX_LENGTH = 160
@@ -201,6 +216,10 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   const [searchOpen, setSearchOpen] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
   const [started, setStarted] = useState(false)
+  const [dragOver, setDragOver] = useState(false)
+  // xterm's canvas children re-fire dragenter/dragleave as the cursor moves over them, so the
+  // highlight is driven by enter/leave depth instead of a single boolean toggle.
+  const dragDepthRef = useRef(0)
   const markPtyStarted = useAppStore((s) => s.markPtyStarted)
   const focusTerminal = useAppStore((s) => s.focusTerminal)
   const setPreview = useAppStore((s) => s.setPreview)
@@ -229,6 +248,66 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
       .catch(() => {
         // clipboard read denied (window unfocused / permission) — right-click is a no-op then
       })
+  }
+
+  // OS file/folder drag-in: dropping onto the terminal body inserts the paths at the cursor.
+  // Only real file drags (dataTransfer.types contains 'Files') are accepted — the pane-header
+  // reorder drags carry no Files type and must keep working untouched.
+  const isFileDrag = (event: DragEvent): boolean => event.dataTransfer.types.includes('Files')
+
+  const handleDragEnter = (event: DragEvent<HTMLDivElement>): void => {
+    if (!isFileDrag(event)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    dragDepthRef.current += 1
+    setDragOver(true)
+  }
+
+  const handleDragOver = (event: DragEvent<HTMLDivElement>): void => {
+    if (!isFileDrag(event)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+  }
+
+  const handleDragLeave = (event: DragEvent<HTMLDivElement>): void => {
+    if (!isFileDrag(event)) return
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) setDragOver(false)
+  }
+
+  const handleDrop = (event: DragEvent<HTMLDivElement>): void => {
+    dragDepthRef.current = 0
+    setDragOver(false)
+    if (!isFileDrag(event)) return
+    event.preventDefault()
+    const paths: string[] = []
+    for (const file of Array.from(event.dataTransfer.files)) {
+      const path = window.api.getPathForFile(file)
+      if (path) paths.push(path)
+    }
+    if (paths.length === 0) return
+    const text = paths.map((p) => quotePathForShell(p, window.api.platform === 'win32')).join(' ')
+    void insertDroppedPaths(text)
+  }
+
+  // Sessions are lazy: a drop onto a pane that was never started must spawn its pty first —
+  // writes to a not-yet-spawned session are silently dropped. Start it here, mark it started
+  // so the focus effect won't race us, and paste only once the spawn has completed.
+  async function insertDroppedPaths(text: string): Promise<void> {
+    const term = termRef.current
+    if (!term) return
+    focusTerminal(terminalId)
+    if (!startedRef.current) {
+      startedRef.current = true
+      setStarted(true)
+      try {
+        await window.api.ptyStart(terminalId, term.cols, term.rows)
+        markPtyStarted(terminalId)
+      } catch {
+        return
+      }
+    }
+    term.paste(text)
   }
 
   useEffect(() => {
@@ -395,7 +474,7 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   return (
     <div
       ref={rootRef}
-      className={`terminal-pane${isActive ? ' pane-active' : ''}`}
+      className={`terminal-pane${isActive ? ' pane-active' : ''}${dragOver ? ' drag-over' : ''}`}
       style={{ display: visible ? 'flex' : 'none' }}
     >
       <div
@@ -436,7 +515,13 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
           <button onClick={() => setSearchOpen(false)}>✕</button>
         </div>
       )}
-      <div className="terminal-body">
+      <div
+        className="terminal-body"
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
         <div className="terminal-container" ref={containerRef} tabIndex={0} onContextMenu={handleContextMenu} />
         {visible && !started && (
           <div className="terminal-start-overlay">

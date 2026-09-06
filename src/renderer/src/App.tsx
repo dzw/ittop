@@ -151,6 +151,22 @@ export default function App(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaces, settings.activeWorkspaceId])
 
+  // Without these, dropping a file anywhere that isn't a terminal pane would make Electron
+  // navigate the window to that file. Terminal panes handle their own drops (the pane's
+  // handler still fires first during bubbling; this only vetoes the default for everything
+  // else, mirroring guardNavigation in the main process).
+  useEffect(() => {
+    const vetoFileDrop = (event: DragEvent): void => {
+      event.preventDefault()
+    }
+    window.addEventListener('dragover', vetoFileDrop)
+    window.addEventListener('drop', vetoFileDrop)
+    return () => {
+      window.removeEventListener('dragover', vetoFileDrop)
+      window.removeEventListener('drop', vetoFileDrop)
+    }
+  }, [])
+
   function applyRestore(shouldRestore: boolean): void {
     setShowRestorePrompt(false)
     if (!shouldRestore) return
