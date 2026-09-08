@@ -370,6 +370,12 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
         copySelectionToClipboard(term)
         return false
       }
+      // F5 is an app-level shortcut (run this terminal's script). xterm's own keydown
+      // handler stopPropagation()s function keys on its hidden textarea, so without this
+      // release the window-level handler in App never sees the press. Returning false makes
+      // xterm bail out early — no preventDefault, no stopPropagation — and the event
+      // bubbles up to the window as normal.
+      if (event.key === 'F5') return false
       return true
     })
 

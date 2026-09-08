@@ -123,7 +123,9 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
           </div>
         </label>
         <p className="modal-hint">
-          Pressing F5 in this terminal runs the script in the shell (e.g. <code>build.bat</code>). Leave empty to disable.
+          Pressing F5 with this terminal focused runs the script as an external process in the
+          project folder (e.g. <code>build.bat</code>) — it does NOT run inside the terminal. Leave empty to
+          disable.
         </p>
         <label className="checkbox-label">
           <input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />

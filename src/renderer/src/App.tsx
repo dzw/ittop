@@ -37,7 +37,7 @@ export default function App(): React.JSX.Element {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [toasts, setToasts] = useState<
-    Array<{ id: string; terminalId: string; name: string; message?: string }>
+    Array<{ id: string; terminalId: string; name: string; message?: string; ok?: boolean }>
   >([])
   const [colFractions, setColFractions] = useState<number[]>([1])
   const [rowFractions, setRowFractions] = useState<number[] | null>(null)
@@ -128,23 +128,26 @@ export default function App(): React.JSX.Element {
         return
       }
 
-      // F5 runs the focused terminal's configured script (e.g. build.bat) inside its shell.
-      // Works even while the terminal has keyboard focus — F5 isn't a shell/readline key.
+      // F5 runs the focused terminal's configured script (e.g. build.bat) as an EXTERNAL
+      // child process (main process spawns it in the project folder) — never typed into the
+      // terminal pty, which usually holds a running coding-agent session. Works even while
+      // the terminal has keyboard focus; success/failure surfaces as a toast.
       if (event.key === 'F5') {
         event.preventDefault()
-        const id = focusedTerminalId
-        const terminal = workspaces.flatMap((w) => w.terminals).find((t) => t.id === id)
-        if (id && terminal) {
-          if (terminal.runCommand.trim()) {
-            window.api.runTerminalScript(id)
-          } else {
+        // Read the LIVE store state: this effect's deps don't include focusedTerminalId, so
+        // the closure value is stale right after the user clicked another pane — and F5 must
+        // always hit the pane that has focus right now.
+        const live = useAppStore.getState()
+        const id = live.focusedTerminalId
+        const terminal = live.workspaces.flatMap((w) => w.terminals).find((t) => t.id === id)
+        if (id && terminal && terminal.runCommand.trim()) {
+          void window.api.runTerminalScript(id).then(({ ok, message }) => {
             const toastId = `f5-${Date.now()}`
-            setToasts((prev) => [
-              ...prev,
-              { id: toastId, terminalId: id, name: terminal.name, message: 'No run script set — open the terminal menu and set one.' }
-            ])
-            setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), 4000)
-          }
+            setToasts((prev) => [...prev, { id: toastId, terminalId: id, name: terminal.name, message, ok }])
+            // Long-running builds report "still running" — keep that toast up longer.
+            const ttl = ok ? 8000 : 6000
+            setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), ttl)
+          })
         }
         return
       }
@@ -590,9 +593,13 @@ export default function App(): React.JSX.Element {
                 setToasts((prev) => prev.filter((t) => t.id !== toast.id))
               }}
             >
-              {toast.message ? null : <span className="status-dot status-waiting" />}
+              {toast.message === undefined ? (
+                <span className="status-dot status-waiting" />
+              ) : (
+                <span className={toast.ok ? 'toast-dot toast-dot-ok' : 'toast-dot toast-dot-fail'} />
+              )}
               <span>
-                {toast.message ? (
+                {toast.message !== undefined ? (
                   <>
                     <strong>{toast.name}</strong>: {toast.message}
                   </>

@@ -1,5 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain, dialog, Notification, session, Tray, Menu, nativeImage } from 'electron'
-import { join } from 'path'
+import { extname, isAbsolute, join } from 'path'
 import { pathToFileURL } from 'url'
 import { existsSync, readFileSync, writeFileSync, promises as fsPromises } from 'fs'
 import { spawn } from 'child_process'
@@ -671,14 +671,70 @@ function registerIpcHandlers(): void {
     ptyManager.write(terminalId, data)
   })
 
-  // F5 "run script": type the terminal's configured runCommand (e.g. a .bat launch) into the
-  // shell and press Enter. No-op when the script is unset or the pty isn't running yet.
-  ipcMain.on(IPC.terminalRunScript, (_event, terminalId: string) => {
+  // F5 "run script": run the terminal's configured runCommand (e.g. a .bat) as an EXTERNAL
+  // child process — never inside the terminal pty. The pty usually holds a running coding
+  // agent session; typing a command into it would hand the command to that agent instead of
+  // the shell. The script runs in its own process rooted at the terminal's project folder;
+  // .bat/.cmd via cmd /c, .ps1 via powershell -File, everything else through the default
+  // shell. Output does not appear in the app — success/failure is reported back to the
+  // renderer for a toast.
+  ipcMain.handle(IPC.terminalRunScript, (_event, terminalId: string) => {
     const found = findTerminal(terminalId)
     const script = found?.terminal.runCommand?.trim() ?? ''
-    if (!found || script.length === 0) return
-    if (!ptyManager.has(terminalId)) return
-    ptyManager.write(terminalId, `${script}\r`)
+    if (!found || script.length === 0) return { ok: false, message: 'No run script set for this terminal.' }
+
+    const cwd = found.terminal.projectPath
+    if (!existsSync(cwd)) return { ok: false, message: `Project folder does not exist: ${cwd}` }
+
+    // Resolve a relative script name against the project folder.
+    const resolved = isAbsolute(script) ? script : join(cwd, script)
+    if (!existsSync(resolved)) return { ok: false, message: `Script not found: ${resolved}` }
+
+    let command: string
+    let args: string[]
+    if (process.platform === 'win32') {
+      const ext = extname(resolved).toLowerCase()
+      if (ext === '.ps1') {
+        command = 'powershell.exe'
+        args = ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', resolved]
+      } else {
+        // Pass the path RAW as its own argument: Windows child_process builds the final
+        // command line itself and quotes space-containing args correctly. Pre-quoting here
+        // (empirically verified) makes cmd treat the quotes as part of the file name and
+        // fail with "not recognized as an internal or external command".
+        command = 'cmd.exe'
+        args = ['/c', resolved]
+      }
+    } else {
+      // POSIX: the whole command is one shell string, so single-quote the path (the
+      // standard escape used for shell injection).
+      const shQuoted = `'${resolved.replace(/'/g, `'\\''`)}'`
+      command = process.env.SHELL ?? 'sh'
+      args = ['-c', shQuoted]
+    }
+
+    return new Promise<{ ok: boolean; message: string }>((resolve) => {
+      const proc = spawn(command, args, { cwd, stdio: 'ignore', windowsHide: true })
+      let settled = false
+      const settle = (ok: boolean, message: string): void => {
+        if (settled) return
+        settled = true
+        resolve({ ok, message })
+      }
+      const failTimer = setTimeout(() => {
+        // Long-running build: give up waiting for exit, report as launched.
+        settle(true, `${script} is still running in the background.`)
+      }, 10_000)
+      proc.on('error', (err) => {
+        clearTimeout(failTimer)
+        settle(false, `Failed to start ${script}: ${err.message}`)
+      })
+      proc.on('close', (code) => {
+        clearTimeout(failTimer)
+        if (code === 0) settle(true, `${script} finished successfully.`)
+        else settle(false, `${script} exited with code ${code}.`)
+      })
+    })
   })
 
   ipcMain.on(IPC.ptyResize, (_event, terminalId: string, cols: number, rows: number) => {

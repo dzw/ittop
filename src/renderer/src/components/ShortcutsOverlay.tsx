@@ -7,7 +7,7 @@ const SHORTCUTS: Array<[string, string]> = [
   ['Ctrl+1 … Ctrl+9', 'Jump to workspace 1–9'],
   ['Ctrl+N', 'New workspace'],
   ['Ctrl+F', 'Search inside the focused terminal'],
-  ['F5', 'Run the focused terminal’s run script (set it in the terminal’s Edit dialog)'],
+  ['F5', 'Run the focused terminal’s script externally (set it in the terminal’s Edit dialog)'],
   ['Click ⚙', 'Open settings'],
   ['Drag pane header', 'Reorder terminals within a workspace'],
   ['Drag column divider', 'Resize a pane column'],

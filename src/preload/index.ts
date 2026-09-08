@@ -56,7 +56,8 @@ const api = {
     ipcRenderer.invoke(IPC.terminalReorder, workspaceId, orderedIds),
   restartTerminal: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalRestart, id),
   markTerminalRead: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalMarkRead, id),
-  runTerminalScript: (id: string): void => ipcRenderer.send(IPC.terminalRunScript, id),
+  runTerminalScript: (id: string): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke(IPC.terminalRunScript, id),
 
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settingsGet),
   updateSettings: (patch: Partial<AppSettings>): Promise<void> =>

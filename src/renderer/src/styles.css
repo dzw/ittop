@@ -1361,6 +1361,24 @@ button {
   background: var(--bg-hover);
 }
 
+/* Result indicator for script-run toasts (F5): green = success, red = failure. */
+.toast-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.toast-dot-ok {
+  background: var(--status-working);
+  box-shadow: 0 0 4px 1px var(--status-working);
+}
+
+.toast-dot-fail {
+  background: var(--danger);
+  box-shadow: 0 0 4px 1px var(--danger);
+}
+
 /* Import preview modal */
 
 .import-preview-modal {
