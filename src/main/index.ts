@@ -744,6 +744,34 @@ function registerIpcHandlers(): void {
   ipcMain.handle(IPC.appGetVersion, () => app.getVersion())
   ipcMain.handle(IPC.appCheckForUpdates, () => updater.checkForUpdates())
   ipcMain.handle(IPC.appInstallUpdate, () => updater.installUpdate())
+
+  // Run a user-configured external tool (Settings → External tools) against a terminal's project
+  // directory. The configured command is a free-form shell line — spawned through a shell so
+  // PATH lookups and .cmd launchers like `code` work. The directory is appended as the final
+  // argument, or substituted in place wherever the command contains the `{path}` placeholder.
+  ipcMain.handle(IPC.toolsRunExternal, (_event, toolId: string, directory: string) => {
+    const tool = store.getState().settings.externalTools.find((t) => t.id === toolId)
+    if (!tool || !tool.command.trim()) return
+    const quotedDir = `"${directory}"`
+    const commandLine = tool.command.includes('{path}')
+      ? tool.command.replaceAll('{path}', quotedDir)
+      : `${tool.command} ${quotedDir}`
+    try {
+      const proc = spawn(commandLine, {
+        cwd: directory,
+        detached: true,
+        stdio: 'ignore',
+        shell: true,
+        windowsHide: false
+      })
+      proc.on('error', (err) => console.error(`external tool "${tool.title}" failed: ${err.message}`))
+      proc.unref()
+    } catch (err) {
+      console.error(
+        `external tool "${tool.title}" failed for ${directory}: ${err instanceof Error ? err.message : String(err)}`
+      )
+    }
+  })
 }
 
 app.whenReady().then(() => {

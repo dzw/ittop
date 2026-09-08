@@ -25,6 +25,15 @@ export interface TerminalRuntimeState {
 
 export type AppTheme = 'dark' | 'light' | 'dracula' | 'nord' | 'solarized'
 
+/** A user-configured external tool that shows up in terminal right-click menus. Invoking it
+ * spawns `command` with the terminal's project directory appended as the final argument (or
+ * substituted wherever `{path}` appears in the command). */
+export interface ExternalTool {
+  id: string
+  title: string
+  command: string
+}
+
 export interface AppSettings {
   windowBounds?: { x?: number; y?: number; width: number; height: number; maximized?: boolean }
   sidebarWidth: number
@@ -39,6 +48,7 @@ export interface AppSettings {
   paneRowFractions: number[]
   /** Auto-grow the focused terminal's row to 70% of the grid height (focus zoom). */
   autoFocusRowZoom: boolean
+  externalTools: ExternalTool[]
 }
 
 /** The subset of AppSettings worth offering to restore from someone else's export — pure
@@ -124,6 +134,7 @@ export const IPC = {
   fsReveal: 'fs:reveal',
   fsOpenPowerShell: 'fs:openPowerShell',
   fsOpenVSCode: 'fs:openVSCode',
+  toolsRunExternal: 'tools:runExternal',
   previewOpen: 'preview:open',
 
   ptyStart: 'pty:start',

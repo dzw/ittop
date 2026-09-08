@@ -188,6 +188,18 @@ export default function App(): React.JSX.Element {
     reorderTerminals(activeWorkspace.id, order)
   }
 
+  // Pane headers only know their terminalId; resolve it back to the (workspace, terminal) pair
+  // the edit dialog needs.
+  function handleEditTerminalById(terminalId: string): void {
+    for (const workspace of workspaces) {
+      const terminal = workspace.terminals.find((t) => t.id === terminalId)
+      if (terminal) {
+        setEditingTerminal({ workspaceId: workspace.id, terminal })
+        return
+      }
+    }
+  }
+
   // Terminals whose pane was created (their terminal-item was clicked once) stay mounted so
   // their pty/scrollback survive switching away — panes are lazy, so terminals that were
   // never opened have no TerminalPane at all. Only the active workspace's created panes are
@@ -489,6 +501,7 @@ export default function App(): React.JSX.Element {
                 terminalName={terminal.name}
                 visible={visible}
                 isActive={isActive}
+                onEditTerminal={handleEditTerminalById}
                 onHeaderDragStart={(sourceId) => (dragPaneIdRef.current = sourceId)}
                 onHeaderDrop={handlePaneDrop}
               />

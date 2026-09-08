@@ -7,6 +7,7 @@ import { WebLinksAddon } from '@xterm/addon-web-links'
 import '@xterm/xterm/css/xterm.css'
 import { useAppStore } from '../store/useAppStore'
 import type { AppTheme } from '../../../shared/types'
+import TerminalContextMenu from './TerminalContextMenu'
 
 const SCROLLBACK_LINES = 10000
 
@@ -15,6 +16,8 @@ interface Props {
   terminalName: string
   visible: boolean
   isActive: boolean
+  /** Opens the edit-terminal dialog when the pane header's context menu Edit item is used. */
+  onEditTerminal?: (terminalId: string) => void
   onHeaderDragStart: (terminalId: string) => void
   onHeaderDrop: (terminalId: string) => void
 }
@@ -204,7 +207,7 @@ function copySelectionToClipboard(term: Terminal): void {
 }
 
 const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
-  { terminalId, terminalName, visible, isActive, onHeaderDragStart, onHeaderDrop },
+  { terminalId, terminalName, visible, isActive, onEditTerminal, onHeaderDragStart, onHeaderDrop },
   rootRef
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -217,6 +220,7 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   const [searchQuery, setSearchQuery] = useState('')
   const [started, setStarted] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [headerMenu, setHeaderMenu] = useState<{ x: number; y: number } | null>(null)
   // xterm's canvas children re-fire dragenter/dragleave as the cursor moves over them, so the
   // highlight is driven by enter/leave depth instead of a single boolean toggle.
   const dragDepthRef = useRef(0)
@@ -226,6 +230,13 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   const gitBranch = useAppStore((s) => s.gitBranches[terminalId])
   const status = useAppStore((s) => s.runtime[terminalId]?.status)
   const theme = useAppStore((s) => s.settings.theme)
+  const projectPath = useAppStore((s) => {
+    for (const workspace of s.workspaces) {
+      const terminal = workspace.terminals.find((t) => t.id === terminalId)
+      if (terminal) return terminal.projectPath
+    }
+    return ''
+  })
 
   // Standalone PowerShell (conhost QuickEdit) semantics for the terminal body: with an active
   // selection, right-click copies it to the clipboard; with no selection it pastes the
@@ -489,12 +500,25 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
           e.preventDefault()
           onHeaderDrop(terminalId)
         }}
-        title="Drag to rearrange"
+        onContextMenu={(e) => {
+          e.preventDefault()
+          setHeaderMenu({ x: e.clientX, y: e.clientY })
+        }}
+        title="Drag to rearrange · right-click for folder actions"
       >
         <span className={statusDotClass(status)} />
         <span className="terminal-pane-title">{terminalName}</span>
         {gitBranch && <span className="terminal-pane-branch">⎇ {gitBranch}</span>}
       </div>
+      {headerMenu && projectPath && (
+        <TerminalContextMenu
+          x={headerMenu.x}
+          y={headerMenu.y}
+          projectPath={projectPath}
+          onEdit={onEditTerminal ? () => onEditTerminal(terminalId) : undefined}
+          onClose={() => setHeaderMenu(null)}
+        />
+      )}
       {searchOpen && (
         <div className="terminal-search-bar">
           <input

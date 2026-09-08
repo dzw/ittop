@@ -3,10 +3,13 @@ import type { AppTheme, ImportPreviewEntry, RestorableSettings, UpdateStatus } f
 import { useAppStore } from '../store/useAppStore'
 import ImportPreviewModal from './ImportPreviewModal'
 import HookInfoModal from './HookInfoModal'
+import ExternalToolsSettings from './ExternalToolsSettings'
 
 interface Props {
   onClose: () => void
 }
+
+type SettingsTab = 'general' | 'tools'
 
 const THEME_OPTIONS: Array<{ id: AppTheme; label: string; bg: string; bg2: string; accent: string }> = [
   { id: 'dark', label: 'Dark', bg: '#1c1e21', bg2: '#17181a', accent: '#4ee2a3' },
@@ -45,6 +48,7 @@ export default function SettingsModal({ onClose }: Props): React.JSX.Element {
 
   const [defaultStartCommand, setDefaultStartCommand] = useState(settings.defaultStartCommand)
   const [idleSeconds, setIdleSeconds] = useState(Math.round(settings.idleDebounceMs / 1000))
+  const [activeTab, setActiveTab] = useState<SettingsTab>('general')
   const [version, setVersion] = useState<string | null>(null)
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus | null>(null)
   const [checking, setChecking] = useState(false)
@@ -120,7 +124,23 @@ export default function SettingsModal({ onClose }: Props): React.JSX.Element {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
         <h2>Settings</h2>
+        <div className="settings-tabs">
+          <button
+            className={`settings-tab${activeTab === 'general' ? ' active' : ''}`}
+            onClick={() => setActiveTab('general')}
+          >
+            General
+          </button>
+          <button
+            className={`settings-tab${activeTab === 'tools' ? ' active' : ''}`}
+            onClick={() => setActiveTab('tools')}
+          >
+            External tools
+          </button>
+        </div>
 
+        {activeTab === 'general' && (
+          <>
         <label>
           Theme
           <div className="theme-swatches">
@@ -224,6 +244,10 @@ export default function SettingsModal({ onClose }: Props): React.JSX.Element {
           </div>
           {updateStatus && <p className="settings-update-status">{updateStatusText(updateStatus)}</p>}
         </div>
+          </>
+        )}
+
+        {activeTab === 'tools' && <ExternalToolsSettings />}
 
         <div className="modal-actions">
           <button className="primary" onClick={onClose}>

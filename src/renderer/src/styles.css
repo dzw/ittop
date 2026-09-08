@@ -1111,6 +1111,12 @@ button {
   background: var(--bg-active);
 }
 
+.context-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
 .modal {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
@@ -1446,6 +1452,75 @@ button {
 
 .settings-modal {
   width: 460px;
+}
+
+.settings-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.settings-tab {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--mono-font);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 5px 8px;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.settings-tab:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+.settings-tab.active {
+  color: var(--mono-accent);
+  background: var(--bg-active);
+}
+
+.external-tools {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.external-tool-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.external-tool-row input {
+  min-width: 0;
+}
+
+.external-tool-title {
+  flex: 0 0 130px;
+}
+
+.external-tool-command {
+  flex: 1;
+  font-family: var(--mono-font);
+}
+
+.external-tool-add {
+  align-self: flex-start;
+  background: var(--bg-active);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 4px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.external-tool-add:hover {
+  background: var(--bg-hover);
 }
 
 .theme-swatches {

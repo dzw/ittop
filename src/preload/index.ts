@@ -66,6 +66,8 @@ const api = {
   revealFolder: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsReveal, path),
   openPowerShell: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsOpenPowerShell, path),
   openInVSCode: (path: string): Promise<void> => ipcRenderer.invoke(IPC.fsOpenVSCode, path),
+  runExternalTool: (toolId: string, directory: string): Promise<void> =>
+    ipcRenderer.invoke(IPC.toolsRunExternal, toolId, directory),
   openFilePreviewWindow: (path: string): Promise<void> => ipcRenderer.invoke(IPC.previewOpen, path),
 
   ptyStart: (id: string, cols: number, rows: number): Promise<void> =>

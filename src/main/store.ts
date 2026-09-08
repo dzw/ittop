@@ -2,7 +2,7 @@ import { app } from 'electron'
 import { existsSync, readFileSync, writeFileSync, renameSync } from 'fs'
 import { join } from 'path'
 import { randomUUID } from 'crypto'
-import type { PersistedState, Terminal, Workspace } from '../shared/types'
+import type { ExternalTool, PersistedState, Terminal, Workspace } from '../shared/types'
 
 const FILE_NAME = 'workspaces.json'
 
@@ -20,9 +20,23 @@ function defaultState(): PersistedState {
       idleDebounceMs: 1200,
       paneColFractions: [],
       paneRowFractions: [],
-      autoFocusRowZoom: true
+      autoFocusRowZoom: true,
+      externalTools: []
     }
   }
+}
+
+// Persisted settings may predate external tools or carry hand-edited/corrupt entries; keep only
+// well-formed ones so the right-click menus never render items that can't run.
+function normalizeExternalTools(raw: unknown): ExternalTool[] {
+  if (!Array.isArray(raw)) return []
+  return raw
+    .filter((t): t is Record<string, unknown> => typeof t === 'object' && t !== null)
+    .map((t) => ({
+      id: typeof t.id === 'string' && t.id ? t.id : randomUUID(),
+      title: typeof t.title === 'string' ? t.title : '',
+      command: typeof t.command === 'string' ? t.command : ''
+    }))
 }
 
 // Pre-2.0 files stored one terminal directly on the workspace (projectPath/startCommand).
@@ -77,9 +91,11 @@ export class Store {
     try {
       const raw = readFileSync(this.filePath, 'utf-8')
       const parsed = JSON.parse(raw) as Partial<PersistedState> & { workspaces?: LegacyWorkspace[] }
+      const settings = { ...defaultState().settings, ...parsed.settings }
+      settings.externalTools = normalizeExternalTools(settings.externalTools)
       return {
         workspaces: (parsed.workspaces ?? []).map(migrateWorkspace),
-        settings: { ...defaultState().settings, ...parsed.settings }
+        settings
       }
     } catch {
       return defaultState()

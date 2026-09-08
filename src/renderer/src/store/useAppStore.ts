@@ -70,7 +70,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     idleDebounceMs: 1200,
     paneColFractions: [],
     paneRowFractions: [],
-    autoFocusRowZoom: true
+    autoFocusRowZoom: true,
+    externalTools: []
   },
   openedWorkspaceIds: new Set(),
   createdPaneIds: new Set(),

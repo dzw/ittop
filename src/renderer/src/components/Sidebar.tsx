@@ -4,6 +4,7 @@ import { useAppStore } from '../store/useAppStore'
 import { useNow } from '../hooks/useNow'
 import { formatRelativeTime } from '../lib/time'
 import SettingsModal from './SettingsModal'
+import TerminalContextMenu from './TerminalContextMenu'
 
 interface Props {
   onNewWorkspace: () => void
@@ -481,62 +482,13 @@ export default function Sidebar({ onNewWorkspace, onNewTerminal, onEditTerminal 
       )}
       <div className="sidebar-resizer" onMouseDown={startResize} />
       {terminalMenu && (
-        <>
-          <div className="context-menu-backdrop" onClick={() => setTerminalMenu(null)} onContextMenu={(e) => {
-            e.preventDefault()
-            setTerminalMenu(null)
-          }} />
-          <div
-            className="context-menu"
-            style={{ left: terminalMenu.x, top: terminalMenu.y }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              title="Open the project folder in the system file manager"
-              onClick={() => {
-                void window.api.revealFolder(terminalMenu.terminal.projectPath)
-                setTerminalMenu(null)
-              }}
-            >
-              Explorer
-            </button>
-            <button
-              title="Open an independent PowerShell window in the project folder"
-              onClick={() => {
-                void window.api.openPowerShell(terminalMenu.terminal.projectPath)
-                setTerminalMenu(null)
-              }}
-            >
-              PS
-            </button>
-            <button
-              title="Open the project folder in VS Code"
-              onClick={() => {
-                void window.api.openInVSCode(terminalMenu.terminal.projectPath)
-                setTerminalMenu(null)
-              }}
-            >
-              Open in VS Code
-            </button>
-            <button
-              title="Copy the full path to the clipboard"
-              onClick={() => {
-                void navigator.clipboard.writeText(terminalMenu.terminal.projectPath)
-                setTerminalMenu(null)
-              }}
-            >
-              Copy path
-            </button>
-            <button
-              onClick={() => {
-                onEditTerminal(terminalMenu.workspaceId, terminalMenu.terminal)
-                setTerminalMenu(null)
-              }}
-            >
-              ✎ Edit
-            </button>
-          </div>
-        </>
+        <TerminalContextMenu
+          x={terminalMenu.x}
+          y={terminalMenu.y}
+          projectPath={terminalMenu.terminal.projectPath}
+          onEdit={() => onEditTerminal(terminalMenu.workspaceId, terminalMenu.terminal)}
+          onClose={() => setTerminalMenu(null)}
+        />
       )}
       {confirmDeleteWorkspace && (
         <div className="modal-overlay" onClick={() => setConfirmDeleteWorkspace(null)}>
