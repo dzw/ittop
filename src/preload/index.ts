@@ -44,6 +44,8 @@ const api = {
     ipcRenderer.invoke(IPC.workspacesImportCommit, input),
 
   pickFolder: (): Promise<string | null> => ipcRenderer.invoke(IPC.terminalPickFolder),
+  pickScriptFile: (startFolder?: string): Promise<string | null> =>
+    ipcRenderer.invoke(IPC.terminalPickScript, startFolder),
   createTerminal: (input: CreateTerminalInput): Promise<Terminal | null> =>
     ipcRenderer.invoke(IPC.terminalCreate, input),
   renameTerminal: (id: string, name: string): Promise<void> => ipcRenderer.invoke(IPC.terminalRename, id, name),
@@ -54,6 +56,7 @@ const api = {
     ipcRenderer.invoke(IPC.terminalReorder, workspaceId, orderedIds),
   restartTerminal: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalRestart, id),
   markTerminalRead: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalMarkRead, id),
+  runTerminalScript: (id: string): void => ipcRenderer.send(IPC.terminalRunScript, id),
 
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settingsGet),
   updateSettings: (patch: Partial<AppSettings>): Promise<void> =>

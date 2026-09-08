@@ -36,7 +36,9 @@ export default function App(): React.JSX.Element {
   const [showRestorePrompt, setShowRestorePrompt] = useState(false)
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const [toasts, setToasts] = useState<Array<{ id: string; terminalId: string; name: string }>>([])
+  const [toasts, setToasts] = useState<
+    Array<{ id: string; terminalId: string; name: string; message?: string }>
+  >([])
   const [colFractions, setColFractions] = useState<number[]>([1])
   const [rowFractions, setRowFractions] = useState<number[] | null>(null)
   const [dividerLefts, setDividerLefts] = useState<number[]>([])
@@ -126,6 +128,26 @@ export default function App(): React.JSX.Element {
         return
       }
 
+      // F5 runs the focused terminal's configured script (e.g. build.bat) inside its shell.
+      // Works even while the terminal has keyboard focus — F5 isn't a shell/readline key.
+      if (event.key === 'F5') {
+        event.preventDefault()
+        const id = focusedTerminalId
+        const terminal = workspaces.flatMap((w) => w.terminals).find((t) => t.id === id)
+        if (id && terminal) {
+          if (terminal.runCommand.trim()) {
+            window.api.runTerminalScript(id)
+          } else {
+            const toastId = `f5-${Date.now()}`
+            setToasts((prev) => [
+              ...prev,
+              { id: toastId, terminalId: id, name: terminal.name, message: 'No run script set — open the terminal menu and set one.' }
+            ])
+            setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), 4000)
+          }
+        }
+        return
+      }
       if (event.key === '?' && !isTypingTarget(event.target)) {
         event.preventDefault()
         setShortcutsOpen((open) => !open)
@@ -568,9 +590,17 @@ export default function App(): React.JSX.Element {
                 setToasts((prev) => prev.filter((t) => t.id !== toast.id))
               }}
             >
-              <span className="status-dot status-waiting" />
+              {toast.message ? null : <span className="status-dot status-waiting" />}
               <span>
-                <strong>{toast.name}</strong> is waiting for input
+                {toast.message ? (
+                  <>
+                    <strong>{toast.name}</strong>: {toast.message}
+                  </>
+                ) : (
+                  <>
+                    <strong>{toast.name}</strong> is waiting for input
+                  </>
+                )}
               </span>
             </button>
           ))}

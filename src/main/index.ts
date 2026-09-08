@@ -310,6 +310,24 @@ function registerIpcHandlers(): void {
     return result.filePaths[0]
   })
 
+  // Pick a script file (bat/cmd/ps1/sh/…) to use as a terminal's F5 run script. The chosen
+  // absolute path is what gets stored — the pty starts in the project folder, and shells
+  // resolve relative names against that, but an absolute path is always unambiguous.
+  ipcMain.handle(IPC.terminalPickScript, async (_event, startFolder?: string) => {
+    if (!mainWindow) return null
+    const result = await dialog.showOpenDialog(mainWindow, {
+      properties: ['openFile'],
+      title: 'Select run script',
+      defaultPath: startFolder || undefined,
+      filters: [
+        { name: 'Scripts', extensions: ['bat', 'cmd', 'ps1', 'psm1', 'sh', 'ps1', 'mjs', 'cjs', 'js', 'ts', 'py'] },
+        { name: 'All files', extensions: ['*'] }
+      ]
+    })
+    if (result.canceled || result.filePaths.length === 0) return null
+    return result.filePaths[0]
+  })
+
   ipcMain.handle(IPC.workspaceCreate, (_event, input: CreateWorkspaceInput) => {
     const state = store.getState()
     const workspace: Workspace = {
@@ -367,6 +385,7 @@ function registerIpcHandlers(): void {
       projectPath: input.projectPath,
       startCommand: input.startCommand?.trim() || state.settings.defaultStartCommand || 'claude',
       autoRunCommand: input.autoRunCommand ?? false,
+      runCommand: input.runCommand?.trim() ?? '',
       order: workspace.terminals.length
     }
     const workspaces = state.workspaces.map((w) =>
@@ -396,7 +415,8 @@ function registerIpcHandlers(): void {
               name: input.name,
               projectPath: input.projectPath,
               startCommand: input.startCommand,
-              autoRunCommand: input.autoRunCommand
+              autoRunCommand: input.autoRunCommand,
+              runCommand: input.runCommand
             }
           : t
       )
@@ -515,7 +535,8 @@ function registerIpcHandlers(): void {
                 name: asString(t.name) || 'Terminal',
                 projectPath: path,
                 startCommand: asString(t.startCommand) || defaultCmd,
-                autoRunCommand: typeof t.autoRunCommand === 'boolean' ? (t.autoRunCommand as boolean) : undefined
+                autoRunCommand: typeof t.autoRunCommand === 'boolean' ? (t.autoRunCommand as boolean) : undefined,
+                runCommand: asString(t.runCommand) || undefined
               }))
             return terminals.length > 0 ? { name, terminals } : null
           }
@@ -576,6 +597,7 @@ function registerIpcHandlers(): void {
           projectPath: t.projectPath,
           startCommand: t.startCommand,
           autoRunCommand: typeof t.autoRunCommand === 'boolean' ? t.autoRunCommand : true,
+          runCommand: t.runCommand ?? '',
           order: ti
         }))
       }))
@@ -647,6 +669,16 @@ function registerIpcHandlers(): void {
 
   ipcMain.on(IPC.ptyInput, (_event, terminalId: string, data: string) => {
     ptyManager.write(terminalId, data)
+  })
+
+  // F5 "run script": type the terminal's configured runCommand (e.g. a .bat launch) into the
+  // shell and press Enter. No-op when the script is unset or the pty isn't running yet.
+  ipcMain.on(IPC.terminalRunScript, (_event, terminalId: string) => {
+    const found = findTerminal(terminalId)
+    const script = found?.terminal.runCommand?.trim() ?? ''
+    if (!found || script.length === 0) return
+    if (!ptyManager.has(terminalId)) return
+    ptyManager.write(terminalId, `${script}\r`)
   })
 
   ipcMain.on(IPC.ptyResize, (_event, terminalId: string, cols: number, rows: number) => {

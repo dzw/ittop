@@ -7,6 +7,8 @@ export interface Terminal {
   startCommand: string
   /** Whether opening this terminal auto-runs its start command (false = plain shell). */
   autoRunCommand: boolean
+  /** Script (e.g. a .bat/.ps1 command) run inside this terminal when the user presses F5. Empty = F5 does nothing. */
+  runCommand: string
   order: number
 }
 
@@ -76,6 +78,7 @@ export interface CreateTerminalInput {
   projectPath: string
   startCommand?: string
   autoRunCommand?: boolean
+  runCommand?: string
 }
 
 export interface UpdateTerminalInput {
@@ -83,6 +86,7 @@ export interface UpdateTerminalInput {
   projectPath: string
   startCommand: string
   autoRunCommand: boolean
+  runCommand: string
 }
 
 export interface HookEventPayload {
@@ -123,7 +127,9 @@ export const IPC = {
   terminalDelete: 'terminal:delete',
   terminalReorder: 'terminal:reorder',
   terminalRestart: 'terminal:restart',
+  terminalRunScript: 'terminal:runScript',
   terminalPickFolder: 'terminal:pickFolder',
+  terminalPickScript: 'terminal:pickScript',
   terminalMarkRead: 'terminal:markRead',
 
   settingsGet: 'settings:get',
@@ -161,7 +167,13 @@ export const IPC = {
 
 export interface ImportPreviewEntry {
   name: string
-  terminals: Array<{ name: string; projectPath: string; startCommand: string; autoRunCommand?: boolean }>
+  terminals: Array<{
+    name: string
+    projectPath: string
+    startCommand: string
+    autoRunCommand?: boolean
+    runCommand?: string
+  }>
 }
 
 export type ExportResult =

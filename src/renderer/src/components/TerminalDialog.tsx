@@ -29,6 +29,7 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
   const [projectPath, setProjectPath] = useState(terminal?.projectPath ?? '')
   const [startCommand, setStartCommand] = useState(terminal?.startCommand ?? defaultStartCommand)
   const [autoRun, setAutoRun] = useState(terminal?.autoRunCommand ?? false)
+  const [runCommand, setRunCommand] = useState(terminal?.runCommand ?? '')
   const [error, setError] = useState<string | null>(null)
 
   async function pickFolder(): Promise<void> {
@@ -36,6 +37,11 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
     if (!folder) return
     setProjectPath(folder)
     if (!nameEditedRef.current) setName(folderNameFrom(folder))
+  }
+
+  async function pickScript(): Promise<void> {
+    const file = await window.api.pickScriptFile(projectPath.trim() || undefined)
+    if (file) setRunCommand(file)
   }
 
   async function handleSubmit(): Promise<void> {
@@ -48,7 +54,8 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
         name: name.trim() || 'Terminal',
         projectPath: projectPath.trim(),
         startCommand: startCommand.trim() || defaultStartCommand,
-        autoRunCommand: autoRun
+        autoRunCommand: autoRun,
+        runCommand: runCommand.trim()
       })
     } else {
       const created = await window.api.createTerminal({
@@ -56,7 +63,8 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
         name: name.trim() || 'Terminal',
         projectPath: projectPath.trim(),
         startCommand: startCommand.trim() || defaultStartCommand,
-        autoRunCommand: autoRun
+        autoRunCommand: autoRun,
+        runCommand: runCommand.trim()
       })
       if (!created) {
         setError('Could not add terminal — the workspace may have been deleted.')
@@ -103,6 +111,20 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
           Start command
           <input value={startCommand} onChange={(e) => setStartCommand(e.target.value)} placeholder="claude" />
         </label>
+        <label>
+          Run script (F5)
+          <div className="folder-row">
+            <input
+              value={runCommand}
+              onChange={(e) => setRunCommand(e.target.value)}
+              placeholder="e.g. build.bat or C:\path\to\build.bat"
+            />
+            <button onClick={() => void pickScript()}>Browse…</button>
+          </div>
+        </label>
+        <p className="modal-hint">
+          Pressing F5 in this terminal runs the script in the shell (e.g. <code>build.bat</code>). Leave empty to disable.
+        </p>
         <label className="checkbox-label">
           <input type="checkbox" checked={autoRun} onChange={(e) => setAutoRun(e.target.checked)} />
           Run the start command automatically when this terminal opens

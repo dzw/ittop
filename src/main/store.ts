@@ -54,9 +54,11 @@ interface LegacyWorkspace {
 function migrateWorkspace(raw: LegacyWorkspace): Workspace {
   // Terminals persisted before the autoRunCommand flag existed always auto-ran their start
   // command; default missing flags to true so existing setups keep behaving identically.
+  // runCommand is new and has no legacy value — default to empty (F5 inactive).
   const normalizeTerminal = (t: Terminal): Terminal => ({
     ...t,
-    autoRunCommand: typeof t.autoRunCommand === 'boolean' ? t.autoRunCommand : true
+    autoRunCommand: typeof t.autoRunCommand === 'boolean' ? t.autoRunCommand : true,
+    runCommand: typeof t.runCommand === 'string' ? t.runCommand : ''
   })
   if (Array.isArray(raw.terminals)) {
     return { id: raw.id, name: raw.name, order: raw.order, terminals: raw.terminals.map(normalizeTerminal) }
@@ -70,6 +72,7 @@ function migrateWorkspace(raw: LegacyWorkspace): Workspace {
             projectPath: raw.projectPath,
             startCommand: raw.startCommand ?? 'claude',
             autoRunCommand: true,
+            runCommand: '',
             order: 0
           }
         ]
