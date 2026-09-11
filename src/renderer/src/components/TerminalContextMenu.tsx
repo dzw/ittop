@@ -7,13 +7,15 @@ interface Props {
   projectPath: string
   /** Opens the edit-terminal dialog for the clicked terminal; omit to hide the Edit item. */
   onEdit?: () => void
+  /** Closes the clicked terminal's pane (stops its session, unmounts the pane); omit to hide the Close item. */
+  onClosePane?: () => void
   onClose: () => void
 }
 
 // The right-click menu for a terminal's project folder, shared by the Workspaces sidebar items
 // and the terminal pane headers: the built-in folder actions plus the external tools configured
 // in Settings → External tools, each invoked with the directory as its argument.
-export default function TerminalContextMenu({ x, y, projectPath, onEdit, onClose }: Props): React.JSX.Element {
+export default function TerminalContextMenu({ x, y, projectPath, onEdit, onClosePane, onClose }: Props): React.JSX.Element {
   const tools = useAppStore((s) => s.settings.externalTools)
   const usableTools = tools.filter((t) => t.title.trim() !== '' && t.command.trim() !== '')
 
@@ -105,6 +107,20 @@ export default function TerminalContextMenu({ x, y, projectPath, onEdit, onClose
               }}
             >
               ✎ Edit
+            </button>
+          </>
+        )}
+        {onClosePane && (
+          <>
+            <div className="context-menu-separator" />
+            <button
+              title="Stop this terminal's session and close its pane"
+              onClick={() => {
+                onClosePane()
+                onClose()
+              }}
+            >
+              ✕ Close
             </button>
           </>
         )}

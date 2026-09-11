@@ -226,6 +226,7 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
   const dragDepthRef = useRef(0)
   const markPtyStarted = useAppStore((s) => s.markPtyStarted)
   const focusTerminal = useAppStore((s) => s.focusTerminal)
+  const closePane = useAppStore((s) => s.closePane)
   const setPreview = useAppStore((s) => s.setPreview)
   const gitBranch = useAppStore((s) => s.gitBranches[terminalId])
   const status = useAppStore((s) => s.runtime[terminalId]?.status)
@@ -522,6 +523,7 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
           y={headerMenu.y}
           projectPath={projectPath}
           onEdit={onEditTerminal ? () => onEditTerminal(terminalId) : undefined}
+          onClosePane={() => closePane(terminalId)}
           onClose={() => setHeaderMenu(null)}
         />
       )}

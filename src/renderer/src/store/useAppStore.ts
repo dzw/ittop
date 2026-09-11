@@ -38,6 +38,9 @@ interface AppState {
   updateTerminal: (workspaceId: string, terminalId: string, patch: UpdateTerminalInput) => void
   renameTerminal: (workspaceId: string, terminalId: string, name: string) => void
   removeTerminal: (workspaceId: string, terminalId: string) => void
+  /** Closes a terminal's pane without deleting the terminal: stops its pty session, unmounts
+   * the pane (dropping scrollback), and prunes its runtime state. Reopening re-runs ptyStart. */
+  closePane: (terminalId: string) => void
   reorderTerminals: (workspaceId: string, orderedTerminalIds: string[]) => void
   focusTerminal: (terminalId: string) => void
 
@@ -240,6 +243,25 @@ export const useAppStore = create<AppState>((set, get) => ({
         return { ...w, terminals }
       })
     }))
+  },
+
+  // Closing a pane is not deleting a terminal: the terminal stays in its workspace (and in the
+  // sidebar), only its session and mounted pane go away — the same teardown ptyStop does, plus
+  // unmounting via createdPaneIds so a later reopen starts a fresh pty with fresh scrollback.
+  closePane: (terminalId) => {
+    void window.api.restartTerminal(terminalId)
+    set((state) => {
+      const createdPaneIds = new Set(state.createdPaneIds)
+      createdPaneIds.delete(terminalId)
+      const focusedTerminalId =
+        state.focusedTerminalId === terminalId
+          ? (state.workspaces
+              .find((w) => w.terminals.some((t) => t.id === terminalId))
+              ?.terminals.filter((t) => t.id !== terminalId && createdPaneIds.has(t.id))
+              .sort((a, b) => a.order - b.order)[0]?.id ?? null)
+          : state.focusedTerminalId
+      return { createdPaneIds, focusedTerminalId, ...pruneTerminalMaps(state, [terminalId]) }
+    })
   },
 
   // Typing directly into a pane (or a notification click) should make it — and its parent
