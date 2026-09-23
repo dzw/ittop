@@ -523,7 +523,12 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
           y={headerMenu.y}
           projectPath={projectPath}
           onEdit={onEditTerminal ? () => onEditTerminal(terminalId) : undefined}
-          onClosePane={() => closePane(terminalId)}
+          onClosePane={() => {
+            // Ask before tearing down a live session; close only on confirmation.
+            void window.api.confirmClosePane(terminalId).then(({ ok }) => {
+              if (ok) closePane(terminalId)
+            })
+          }}
           onClose={() => setHeaderMenu(null)}
         />
       )}

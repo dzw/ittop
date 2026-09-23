@@ -55,6 +55,8 @@ const api = {
   reorderTerminals: (workspaceId: string, orderedIds: string[]): Promise<void> =>
     ipcRenderer.invoke(IPC.terminalReorder, workspaceId, orderedIds),
   restartTerminal: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalRestart, id),
+  confirmClosePane: (id: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke(IPC.terminalConfirmClosePane, id),
   markTerminalRead: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalMarkRead, id),
   runTerminalScript: (id: string): Promise<{ ok: boolean; message: string }> =>
     ipcRenderer.invoke(IPC.terminalRunScript, id),

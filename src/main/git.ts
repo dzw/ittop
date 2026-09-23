@@ -46,6 +46,18 @@ export class GitBranchPoller {
     this.lastKnown.delete(terminalId)
   }
 
+  /** Poll a single terminal immediately (e.g. right after its pane opened) so the branch shows
+   * up without waiting for the next interval tick. */
+  async refreshTerminal(terminalId: string): Promise<void> {
+    const terminal = this.getTerminalPaths().find((t) => t.id === terminalId)
+    if (!terminal) return
+    const branch = await getGitBranch(terminal.path)
+    if (this.lastKnown.get(terminalId) !== branch) {
+      this.lastKnown.set(terminalId, branch)
+      this.onBranchChanged(terminalId, branch)
+    }
+  }
+
   private async pollOnce(): Promise<void> {
     const terminals = this.getTerminalPaths()
     await Promise.all(

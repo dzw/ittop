@@ -127,6 +127,8 @@ export const IPC = {
   terminalDelete: 'terminal:delete',
   terminalReorder: 'terminal:reorder',
   terminalRestart: 'terminal:restart',
+  // Native confirm before closing a pane with a live session (main-process dialog, Notepad-style).
+  terminalConfirmClosePane: 'terminal:confirmClosePane',
   terminalRunScript: 'terminal:runScript',
   terminalPickFolder: 'terminal:pickFolder',
   terminalPickScript: 'terminal:pickScript',

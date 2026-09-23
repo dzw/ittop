@@ -48,6 +48,20 @@ export default function TerminalContextMenu({ x, y, projectPath, onEdit, onClose
         style={{ left: pos.x, top: pos.y }}
         onClick={(e) => e.stopPropagation()}
       >
+        {onClosePane && (
+          <>
+            <button
+              title="Stop this terminal's session and close its pane"
+              onClick={() => {
+                onClosePane()
+                onClose()
+              }}
+            >
+              ✕ Close
+            </button>
+            <div className="context-menu-separator" />
+          </>
+        )}
         <button
           title="Open the project folder in the system file manager"
           onClick={() => {
@@ -107,20 +121,6 @@ export default function TerminalContextMenu({ x, y, projectPath, onEdit, onClose
               }}
             >
               ✎ Edit
-            </button>
-          </>
-        )}
-        {onClosePane && (
-          <>
-            <div className="context-menu-separator" />
-            <button
-              title="Stop this terminal's session and close its pane"
-              onClick={() => {
-                onClosePane()
-                onClose()
-              }}
-            >
-              ✕ Close
             </button>
           </>
         )}

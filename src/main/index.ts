@@ -134,7 +134,12 @@ const hookServer = new HookServer((payload) => {
   }
 })
 const gitPoller = new GitBranchPoller(
-  () => allTerminals().map((t) => ({ id: t.id, path: t.projectPath })),
+  // Only poll terminals whose pane is actually open (pty running) — panes are lazy, so sidebar
+  // entries without a mounted pane shouldn't trigger git subprocesses every few seconds.
+  () =>
+    allTerminals()
+      .filter((t) => ptyManager.has(t.id))
+      .map((t) => ({ id: t.id, path: t.projectPath })),
   (terminalId, branch) => mainWindow?.webContents.send(IPC.gitBranchChanged, { id: terminalId, branch })
 )
 const updater = new Updater((status) => mainWindow?.webContents.send(IPC.appUpdateStatus, status))
@@ -458,6 +463,28 @@ function registerIpcHandlers(): void {
     statusManager.markIdle(terminalId)
   })
 
+  // Native, modal confirmation before closing a pane with a live session — like Notepad's
+  // "unsaved changes" prompt that blocks closing the window until you choose. Only sessions
+  // that are actually doing something (working / waiting on the agent) trigger it; an idle
+  // shell or a session that already exited closes without asking.
+  ipcMain.handle(IPC.terminalConfirmClosePane, async (_event, terminalId: string) => {
+    if (!mainWindow) return { ok: true }
+    if (!ptyManager.has(terminalId)) return { ok: true }
+    const status = statusManager.get(terminalId)
+    if (status === 'idle') return { ok: true }
+    const terminal = allTerminals().find((t) => t.id === terminalId)
+    const { response } = await dialog.showMessageBox(mainWindow, {
+      type: 'warning',
+      buttons: ['Stop session', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      title: 'Session still active',
+      message: `The session in ${terminal?.name ?? 'this terminal'} is still active.`,
+      detail: 'Stopping it will end the running program. You can reopen the pane later, but the session will not resume.'
+    })
+    return { ok: response === 0 }
+  })
+
   ipcMain.handle(IPC.terminalMarkRead, (_event, terminalId: string) => {
     unreadCounts.set(terminalId, 0)
     mainWindow?.webContents.send(IPC.statusChanged, {
@@ -665,6 +692,9 @@ function registerIpcHandlers(): void {
     const command = found.terminal.autoRunCommand === false ? '' : found.terminal.startCommand
     ptyManager.start(terminalId, found.terminal.projectPath, command, cols, rows)
     unreadCounts.set(terminalId, 0)
+    // The pane just opened — fetch this terminal's branch once right away instead of waiting
+    // for the next poll tick, and cache it so subsequent ticks only fire on real changes.
+    void gitPoller.refreshTerminal(terminalId)
   })
 
   ipcMain.on(IPC.ptyInput, (_event, terminalId: string, data: string) => {

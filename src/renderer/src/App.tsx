@@ -315,6 +315,20 @@ export default function App(): React.JSX.Element {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.autoFocusRowZoom, focusedTerminalId, activeTerminalIds.join(','), rows])
 
+  // Columns mirror the rows: the focused terminal's column grows to 70% of the grid width and
+  // the other columns share the remaining 30%. The focused terminal's column is index % cols.
+  useEffect(() => {
+    if (!settings.autoFocusRowZoom) return
+    if (colFractionsRef.current.length !== cols || cols < 2) return
+    if (!focusedTerminalId) return
+    const focusIndex = activeTerminalIds.indexOf(focusedTerminalId)
+    if (focusIndex === -1) return
+    const focusedCol = focusIndex % cols
+    const perOther = 0.3 / (cols - 1)
+    setColFractions(Array.from({ length: cols }, (_, i) => (i === focusedCol ? 0.7 : perOther)))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.autoFocusRowZoom, focusedTerminalId, activeTerminalIds.join(','), cols])
+
   const gridStyle = {
     gridTemplateColumns: colFractions.map((f) => `${f}fr`).join(' '),
     gridTemplateRows: rowTracks.map((f) => `${f}fr`).join(' ')

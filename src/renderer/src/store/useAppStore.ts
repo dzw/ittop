@@ -146,6 +146,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   // background, mounted but invisible, so switching back doesn't lose scrollback or restart.
   openWorkspace: (id) => {
     void window.api.updateSettings({ activeWorkspaceId: id })
+    // Most-recently-opened workspace floats to the top of the sidebar list (persisted
+    // through the same reorder path as drag-and-drop, so the order survives restarts).
+    const current = get().workspaces
+    if (current.length > 0 && current[0].id !== id && current.some((w) => w.id === id)) {
+      get().reorderWorkspaces([id, ...current.map((w) => w.id).filter((wid) => wid !== id)])
+    }
     const workspace = get().workspaces.find((w) => w.id === id)
     set((state) => {
       // Keep whichever terminal was already focused if it belongs to this workspace (e.g.
