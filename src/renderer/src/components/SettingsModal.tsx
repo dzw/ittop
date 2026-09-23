@@ -179,6 +179,15 @@ export default function SettingsModal({ onClose }: Props): React.JSX.Element {
           Automatically enlarge the focused terminal&apos;s row
         </label>
 
+        <label className="checkbox-label">
+          <input
+            type="checkbox"
+            checked={settings.confirmCloseActivePane}
+            onChange={(e) => updateAppSettings({ confirmCloseActivePane: e.target.checked })}
+          />
+          Confirm before closing a terminal with an active session
+        </label>
+
         <label>
           Default start command for new workspaces
           <input

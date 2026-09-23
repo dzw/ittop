@@ -50,6 +50,8 @@ export interface AppSettings {
   paneRowFractions: number[]
   /** Auto-grow the focused terminal's row to 70% of the grid height (focus zoom). */
   autoFocusRowZoom: boolean
+  /** Ask before closing a pane whose session is still active (native confirm dialog). */
+  confirmCloseActivePane: boolean
   externalTools: ExternalTool[]
 }
 

@@ -466,8 +466,10 @@ function registerIpcHandlers(): void {
   // Native, modal confirmation before closing a pane with a live session — like Notepad's
   // "unsaved changes" prompt that blocks closing the window until you choose. Only sessions
   // that are actually doing something (working / waiting on the agent) trigger it; an idle
-  // shell or a session that already exited closes without asking.
+  // shell or a session that already exited closes without asking. The Settings toggle
+  // (confirmCloseActivePane) switches the prompt off entirely.
   ipcMain.handle(IPC.terminalConfirmClosePane, async (_event, terminalId: string) => {
+    if (!store.getState().settings.confirmCloseActivePane) return { ok: true }
     if (!mainWindow) return { ok: true }
     if (!ptyManager.has(terminalId)) return { ok: true }
     const status = statusManager.get(terminalId)

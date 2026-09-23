@@ -21,6 +21,7 @@ function defaultState(): PersistedState {
       paneColFractions: [],
       paneRowFractions: [],
       autoFocusRowZoom: true,
+      confirmCloseActivePane: true,
       externalTools: []
     }
   }
