@@ -20,6 +20,8 @@ interface Props {
   onEditTerminal?: (terminalId: string) => void
   onHeaderDragStart: (terminalId: string) => void
   onHeaderDrop: (terminalId: string) => void
+  /** Grid columns to span — >1 only for the full-width top pane of the 品 (3-pane) layout. */
+  gridSpan?: number
 }
 
 function statusDotClass(status: string | undefined): string {
@@ -207,7 +209,16 @@ function copySelectionToClipboard(term: Terminal): void {
 }
 
 const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
-  { terminalId, terminalName, visible, isActive, onEditTerminal, onHeaderDragStart, onHeaderDrop },
+  {
+    terminalId,
+    terminalName,
+    visible,
+    isActive,
+    onEditTerminal,
+    onHeaderDragStart,
+    onHeaderDrop,
+    gridSpan = 1
+  },
   rootRef
 ) {
   const containerRef = useRef<HTMLDivElement>(null)
@@ -493,7 +504,10 @@ const TerminalPane = forwardRef<HTMLDivElement, Props>(function TerminalPane(
     <div
       ref={rootRef}
       className={`terminal-pane${isActive ? ' pane-active' : ''}${dragOver ? ' drag-over' : ''}`}
-      style={{ display: visible ? 'flex' : 'none' }}
+      style={{
+        display: visible ? 'flex' : 'none',
+        gridColumn: gridSpan > 1 ? `span ${gridSpan}` : undefined
+      }}
     >
       <div
         className="terminal-pane-header"

@@ -260,17 +260,34 @@ export default function App(): React.JSX.Element {
     [activeWorkspace, createdPaneIds]
   )
   const visibleCount = activeTerminalIds.length
-  // Column count picks the factor pair with cols >= rows that tiles the panes evenly:
-  // 3 panes → 1 row of 3 (spread horizontally) instead of the sqrt heuristic's 2+1 ragged
-  // stack. Falls back to ceil(sqrt(n)) when no exact factor pair fits.
+  // Grid shape: as square as the pane count allows, always cols >= rows. Scanning rows
+  // downward from sqrt(n) keeps 4 panes at 2×2 (and 6 at 3×2, 8 at 4×2) instead of degenerating
+  // into a single row of n — at 4+ panes each column would be far too narrow to read.
+  // Prime counts (5, 7…) have no factor pair, so they fall back to ceil(sqrt(n)) columns and
+  // leave the last row short.
   const cols = useMemo(() => {
     const n = Math.max(1, visibleCount)
-    for (let r = 1; r <= n; r++) {
-      if (n % r === 0 && n / r >= r) return n / r
+    // 3 panes get the 品 shape instead: one full-width pane on top of two side-by-side ones.
+    // A row of 3 leaves every terminal a third of the window wide — far too narrow to read
+    // agent output in.
+    if (n === 3) return 2
+    for (let r = Math.floor(Math.sqrt(n)); r >= 2; r--) {
+      if (n % r === 0) return n / r
     }
     return Math.ceil(Math.sqrt(n))
   }, [visibleCount])
   const rows = Math.ceil(Math.max(1, visibleCount) / cols)
+  // 品 layout (3 panes): pane 0 spans both columns on the top row, panes 1 and 2 share the
+  // bottom row. Everything else keeps the plain row-major tiling.
+  const isPinLayout = visibleCount === 3 && cols === 2
+
+  function cellPlacement(index: number): { row: number; col: number; span: number } {
+    if (index < 0) return { row: 0, col: 0, span: 1 }
+    if (isPinLayout) {
+      return index === 0 ? { row: 0, col: 0, span: cols } : { row: 1, col: index - 1, span: 1 }
+    }
+    return { row: Math.floor(index / cols), col: index % cols, span: 1 }
+  }
 
   // Column widths are user-adjustable fractions; reset to even (or the remembered layout, if
   // it matches this column count) when the column count itself changes so stale fractions
@@ -324,7 +341,8 @@ export default function App(): React.JSX.Element {
     if (!focusedTerminalId) return
     const focusIndex = activeTerminalIds.indexOf(focusedTerminalId)
     if (focusIndex === -1) return
-    const focusedRow = Math.floor(focusIndex / cols)
+    // cellPlacement, not floor(index / cols): in the 品 layout pane 0 owns the whole top row.
+    const focusedRow = cellPlacement(focusIndex).row
     const perOther = 0.3 / (rows - 1)
     setRowFractions(Array.from({ length: rows }, (_, i) => (i === focusedRow ? 0.7 : perOther)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -338,7 +356,11 @@ export default function App(): React.JSX.Element {
     if (!focusedTerminalId) return
     const focusIndex = activeTerminalIds.indexOf(focusedTerminalId)
     if (focusIndex === -1) return
-    const focusedCol = focusIndex % cols
+    // A pane that spans every column (品 layout's top pane) has no column to zoom — it already
+    // takes the full width, so leave the column split alone.
+    const focusedPlace = cellPlacement(focusIndex)
+    if (focusedPlace.span > 1) return
+    const focusedCol = focusedPlace.col
     const perOther = 0.3 / (cols - 1)
     setColFractions(Array.from({ length: cols }, (_, i) => (i === focusedCol ? 0.7 : perOther)))
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -348,6 +370,11 @@ export default function App(): React.JSX.Element {
     gridTemplateColumns: colFractions.map((f) => `${f}fr`).join(' '),
     gridTemplateRows: rowTracks.map((f) => `${f}fr`).join(' ')
   }
+
+  // In the 品 layout the vertical divider only separates the two BOTTOM panes, so it starts at
+  // the top row's bottom edge (+5 = centre of the grid gap) instead of spanning the full height
+  // and cutting across the wide top pane.
+  const columnDividerTop = isPinLayout && dividerTops.length > 0 ? dividerTops[0] + 5 : undefined
 
   // The vertical (column) and horizontal (row) dividers both ride on top of the grid, so one
   // pass can re-measure both — and only write to the one that actually changed.
@@ -542,19 +569,23 @@ export default function App(): React.JSX.Element {
             const visible = workspace.id === activeWorkspace?.id
             const visibleIndex = visible ? activeTerminalIds.indexOf(terminal.id) : -1
             const isActive = visible && terminal.id === focusedTerminalId
-            const isFirstRowCell = visibleIndex !== -1 && visibleIndex < cols
-            const isFirstColCell = visibleIndex !== -1 && visibleIndex % cols === 0
+            const place = cellPlacement(visibleIndex)
             return (
               <TerminalPane
                 key={terminal.id}
                 ref={(el) => {
-                  if (isFirstRowCell && el) columnCellRefs.current.set(visibleIndex, el)
-                  if (isFirstColCell && el) rowCellRefs.current.set(visibleIndex, el)
+                  if (!el || visibleIndex === -1) return
+                  // Divider measuring cells: the right edge of any cell in column c (skipping
+                  // the 品 top pane, which has no column boundary), and the bottom edge of the
+                  // first cell in row r.
+                  if (place.span === 1) columnCellRefs.current.set(place.col, el)
+                  if (place.col === 0) rowCellRefs.current.set(place.row, el)
                 }}
                 terminalId={terminal.id}
                 terminalName={terminal.name}
                 visible={visible}
                 isActive={isActive}
+                gridSpan={place.span}
                 onEditTerminal={handleEditTerminalById}
                 onHeaderDragStart={(sourceId) => (dragPaneIdRef.current = sourceId)}
                 onHeaderDrop={handlePaneDrop}
@@ -566,7 +597,7 @@ export default function App(): React.JSX.Element {
               <div
                 key={i}
                 className="column-resizer"
-                style={{ left }}
+                style={{ left, top: columnDividerTop }}
                 onMouseDown={(e) => startColumnDrag(i, e)}
               />
             ))}
