@@ -32,6 +32,10 @@ interface AppState {
   removeWorkspace: (id: string) => void
   reorderWorkspaces: (orderedIds: string[]) => void
   openWorkspace: (id: string) => void
+  /** Reopens the last active workspace after an app restart ("Restart sessions"): opens the
+   * workspace AND recreates its terminal panes — panes are lazy (createdPaneIds), so opening
+   * the workspace alone would leave the grid empty and restart nothing. */
+  restoreSession: (workspaceId: string) => void
   closeWorkspace: (id: string) => void
 
   addTerminal: (workspaceId: string, terminal: Terminal) => void
@@ -74,6 +78,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     paneColFractions: [],
     paneRowFractions: [],
     autoFocusRowZoom: true,
+    confirmCloseActivePane: true,
     externalTools: []
   },
   openedWorkspaceIds: new Set(),
@@ -169,6 +174,20 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (workspace) {
       for (const terminal of workspace.terminals) void window.api.markTerminalRead(terminal.id)
     }
+  },
+
+  // Restoring after a restart must recreate the panes: createdPaneIds starts empty on every
+  // app launch, so a plain openWorkspace would tile zero panes and no session would restart.
+  // This restores the pre-lazy behavior — every terminal of the last active workspace gets
+  // its pane back; the focused one auto-starts its pty on mount, the rest show "Click to
+  // start" until clicked (the normal lazy-start rule stays untouched).
+  restoreSession: (workspaceId) => {
+    get().openWorkspace(workspaceId)
+    const workspace = get().workspaces.find((w) => w.id === workspaceId)
+    if (!workspace) return
+    set((state) => ({
+      createdPaneIds: new Set([...state.createdPaneIds, ...workspace.terminals.map((t) => t.id)])
+    }))
   },
 
   closeWorkspace: (id) => {

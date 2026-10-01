@@ -18,6 +18,7 @@ export default function App(): React.JSX.Element {
   const focusedTerminalId = useAppStore((s) => s.focusedTerminalId)
   const load = useAppStore((s) => s.load)
   const openWorkspace = useAppStore((s) => s.openWorkspace)
+  const restoreSession = useAppStore((s) => s.restoreSession)
   const reorderTerminals = useAppStore((s) => s.reorderTerminals)
   const setStatus = useAppStore((s) => s.setStatus)
   const setGitBranch = useAppStore((s) => s.setGitBranch)
@@ -195,7 +196,10 @@ export default function App(): React.JSX.Element {
   function applyRestore(shouldRestore: boolean): void {
     setShowRestorePrompt(false)
     if (!shouldRestore) return
-    if (settings.activeWorkspaceId) openWorkspace(settings.activeWorkspaceId)
+    // restoreSession, not openWorkspace: panes are lazy (createdPaneIds), so plain
+    // openWorkspace would only switch to the workspace and leave the grid with zero panes —
+    // "Restart sessions" has to actually recreate the previous terminals.
+    if (settings.activeWorkspaceId) restoreSession(settings.activeWorkspaceId)
   }
 
   const activeWorkspace = workspaces.find((w) => w.id === settings.activeWorkspaceId) ?? null
