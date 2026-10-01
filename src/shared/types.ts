@@ -54,6 +54,10 @@ export interface AppSettings {
   autoFocusRowZoom: boolean
   /** Ask before closing a pane whose session is still active (native confirm dialog). */
   confirmCloseActivePane: boolean
+  /** Terminals whose pane was open when the app was last used — "Restart sessions" restores
+   * exactly these, not every terminal of the workspace. Undefined until the first pane is
+   * opened or closed (i.e. an install that predates this field): that falls back to all. */
+  openPaneIds?: string[]
   externalTools: ExternalTool[]
 }
 

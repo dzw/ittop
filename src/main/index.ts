@@ -629,6 +629,7 @@ function registerIpcHandlers(): void {
           startCommand: t.startCommand,
           autoRunCommand: typeof t.autoRunCommand === 'boolean' ? t.autoRunCommand : true,
           runCommand: t.runCommand ?? '',
+          buildCommand: t.buildCommand ?? '',
           order: ti
         }))
       }))

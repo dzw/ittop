@@ -33,8 +33,9 @@ interface AppState {
   reorderWorkspaces: (orderedIds: string[]) => void
   openWorkspace: (id: string) => void
   /** Reopens the last active workspace after an app restart ("Restart sessions"): opens the
-   * workspace AND recreates its terminal panes — panes are lazy (createdPaneIds), so opening
-   * the workspace alone would leave the grid empty and restart nothing. */
+   * workspace AND recreates the panes that were open when the app was last used — panes are
+   * lazy (createdPaneIds is in-memory only), so opening the workspace alone would leave the
+   * grid empty and restart nothing. */
   restoreSession: (workspaceId: string) => void
   closeWorkspace: (id: string) => void
 
@@ -59,6 +60,14 @@ interface AppState {
   markHookEventReceived: (timestamp: number) => void
   updateAppSettings: (patch: Partial<AppSettings>) => void
   setSettingsModalOpen: (open: boolean) => void
+}
+
+// createdPaneIds starts empty on every launch, so "Restart sessions" needs the pane list from
+// somewhere persistent: settings.openPaneIds is kept in sync here on every pane open/close.
+// Ids of terminals that no longer exist are dropped so the list can't grow forever.
+function persistOpenPaneIds(createdPaneIds: Set<string>, workspaces: Workspace[]): void {
+  const known = new Set(workspaces.flatMap((w) => w.terminals.map((t) => t.id)))
+  void window.api.updateSettings({ openPaneIds: [...createdPaneIds].filter((id) => known.has(id)) })
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -129,6 +138,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const createdPaneIds = new Set(state.createdPaneIds)
       for (const t of removedWorkspace?.terminals ?? []) createdPaneIds.delete(t.id)
       const terminalMaps = pruneTerminalMaps(state, removedWorkspace?.terminals.map((t) => t.id) ?? [])
+      persistOpenPaneIds(createdPaneIds, workspaces)
       return { workspaces, settings, openedWorkspaceIds, createdPaneIds, ...terminalMaps }
     }),
 
@@ -178,16 +188,21 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Restoring after a restart must recreate the panes: createdPaneIds starts empty on every
   // app launch, so a plain openWorkspace would tile zero panes and no session would restart.
-  // This restores the pre-lazy behavior — every terminal of the last active workspace gets
-  // its pane back; the focused one auto-starts its pty on mount, the rest show "Click to
-  // start" until clicked (the normal lazy-start rule stays untouched).
+  // Only the panes that were actually open last time come back though — restarting a session
+  // the user had closed (or never opened) would spawn agent processes they didn't ask for.
+  // The focused one auto-starts its pty on mount, the rest show "Click to start" until clicked.
   restoreSession: (workspaceId) => {
     get().openWorkspace(workspaceId)
     const workspace = get().workspaces.find((w) => w.id === workspaceId)
     if (!workspace) return
-    set((state) => ({
-      createdPaneIds: new Set([...state.createdPaneIds, ...workspace.terminals.map((t) => t.id)])
-    }))
+    set((state) => {
+      const ids = workspace.terminals.map((t) => t.id)
+      // No remembered list yet (install that predates openPaneIds) — fall back to every
+      // terminal of the workspace, which is the pre-fix behavior.
+      const remembered = state.settings.openPaneIds
+      const restored = remembered ? ids.filter((id) => remembered.includes(id)) : ids
+      return { createdPaneIds: new Set([...state.createdPaneIds, ...restored]) }
+    })
   },
 
   closeWorkspace: (id) => {
@@ -208,13 +223,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     })
   },
 
-  addTerminal: (workspaceId, terminal) =>
+  addTerminal: (workspaceId, terminal) => {
     set((state) => ({
       workspaces: state.workspaces.map((w) =>
         w.id === workspaceId ? { ...w, terminals: [...w.terminals, terminal] } : w
       ),
       createdPaneIds: new Set(state.createdPaneIds).add(terminal.id)
-    })),
+    }))
+    persistOpenPaneIds(get().createdPaneIds, get().workspaces)
+  },
 
   renameTerminal: (workspaceId, terminalId, name) => {
     void window.api.renameTerminal(terminalId, name)
@@ -243,10 +260,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     set((state) => {
       const createdPaneIds = new Set(state.createdPaneIds)
       createdPaneIds.delete(terminalId)
+      const workspaces = state.workspaces.map((w) =>
+        w.id === workspaceId ? { ...w, terminals: w.terminals.filter((t) => t.id !== terminalId) } : w
+      )
+      persistOpenPaneIds(createdPaneIds, workspaces)
       return {
-        workspaces: state.workspaces.map((w) =>
-          w.id === workspaceId ? { ...w, terminals: w.terminals.filter((t) => t.id !== terminalId) } : w
-        ),
+        workspaces,
         createdPaneIds,
         ...pruneTerminalMaps(state, [terminalId])
       }
@@ -285,6 +304,7 @@ export const useAppStore = create<AppState>((set, get) => ({
               ?.terminals.filter((t) => t.id !== terminalId && createdPaneIds.has(t.id))
               .sort((a, b) => a.order - b.order)[0]?.id ?? null)
           : state.focusedTerminalId
+      persistOpenPaneIds(createdPaneIds, state.workspaces)
       return { createdPaneIds, focusedTerminalId, ...pruneTerminalMaps(state, [terminalId]) }
     })
   },
@@ -301,6 +321,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       focusedTerminalId: terminalId,
       createdPaneIds: new Set(state.createdPaneIds).add(terminalId)
     }))
+    persistOpenPaneIds(get().createdPaneIds, get().workspaces)
   },
 
   setSidebarWidth: (width) => {
