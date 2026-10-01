@@ -17,6 +17,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "build:win": "npm run build && electron-builder --win",
+    "build:win:dir": "npm run build && electron-builder --win --dir",
     "build:mac": "chmod +x node_modules/node-pty/prebuilds/darwin-*/spawn-helper && npm run build && electron-builder --mac",
     "test": "vitest run",
     "test:e2e": "electron-vite build && playwright test"

@@ -27,6 +27,14 @@
       "detail": "构建 + electron-builder 打包 Windows 安装包"
     },
     {
+      "label": "build:win:dir",
+      "type": "npm",
+      "script": "build:win:dir",
+      "group": "build",
+      "problemMatcher": [],
+      "detail": "构建 + electron-builder --dir:只产出 dist/win-unpacked/ittop.exe,不打 NSIS 安装包"
+    },
+    {
       "label": "start",
       "type": "npm",
       "script": "start",
