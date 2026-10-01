@@ -133,23 +133,25 @@ export default function App(): React.JSX.Element {
       // child process (main process spawns it in the project folder) — never typed into the
       // terminal pty, which usually holds a running coding-agent session. Works even while
       // the terminal has keyboard focus; success/failure surfaces as a toast.
-      if (event.key === 'F5') {
+      if (event.key === 'F5' || event.key === 'F7') {
         event.preventDefault()
         // Read the LIVE store state: this effect's deps don't include focusedTerminalId, so
-        // the closure value is stale right after the user clicked another pane — and F5 must
-        // always hit the pane that has focus right now.
+        // the closure value is stale right after the user clicked another pane — and F5/F7
+        // must always hit the pane that has focus right now.
         const live = useAppStore.getState()
         const id = live.focusedTerminalId
         const terminal = live.workspaces.flatMap((w) => w.terminals).find((t) => t.id === id)
-        if (id && terminal && terminal.runCommand.trim()) {
-          void window.api.runTerminalScript(id).then(({ ok, message }) => {
-            const toastId = `f5-${Date.now()}`
-            setToasts((prev) => [...prev, { id: toastId, terminalId: id, name: terminal.name, message, ok }])
-            // Long-running builds report "still running" — keep that toast up longer.
-            const ttl = ok ? 8000 : 6000
-            setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), ttl)
-          })
-        }
+        const isBuild = event.key === 'F7'
+        if (!id || !terminal) return
+        const script = isBuild ? terminal.buildCommand.trim() : terminal.runCommand.trim()
+        if (!script) return
+        void (isBuild ? window.api.runTerminalBuildScript(id) : window.api.runTerminalScript(id)).then(({ ok, message }) => {
+          const toastId = `f5-${Date.now()}`
+          setToasts((prev) => [...prev, { id: toastId, terminalId: id, name: terminal.name, message, ok }])
+          // Long-running builds report "still running" — keep that toast up longer.
+          const ttl = ok ? 8000 : 6000
+          setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== toastId)), ttl)
+        })
         return
       }
       if (event.key === '?' && !isTypingTarget(event.target)) {
@@ -258,7 +260,16 @@ export default function App(): React.JSX.Element {
     [activeWorkspace, createdPaneIds]
   )
   const visibleCount = activeTerminalIds.length
-  const cols = useMemo(() => Math.ceil(Math.sqrt(Math.max(1, visibleCount))), [visibleCount])
+  // Column count picks the factor pair with cols >= rows that tiles the panes evenly:
+  // 3 panes → 1 row of 3 (spread horizontally) instead of the sqrt heuristic's 2+1 ragged
+  // stack. Falls back to ceil(sqrt(n)) when no exact factor pair fits.
+  const cols = useMemo(() => {
+    const n = Math.max(1, visibleCount)
+    for (let r = 1; r <= n; r++) {
+      if (n % r === 0 && n / r >= r) return n / r
+    }
+    return Math.ceil(Math.sqrt(n))
+  }, [visibleCount])
   const rows = Math.ceil(Math.max(1, visibleCount) / cols)
 
   // Column widths are user-adjustable fractions; reset to even (or the remembered layout, if

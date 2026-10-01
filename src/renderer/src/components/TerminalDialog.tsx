@@ -30,6 +30,7 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
   const [startCommand, setStartCommand] = useState(terminal?.startCommand ?? defaultStartCommand)
   const [autoRun, setAutoRun] = useState(terminal?.autoRunCommand ?? false)
   const [runCommand, setRunCommand] = useState(terminal?.runCommand ?? '')
+  const [buildCommand, setBuildCommand] = useState(terminal?.buildCommand ?? '')
   const [error, setError] = useState<string | null>(null)
 
   async function pickFolder(): Promise<void> {
@@ -55,7 +56,8 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
         projectPath: projectPath.trim(),
         startCommand: startCommand.trim() || defaultStartCommand,
         autoRunCommand: autoRun,
-        runCommand: runCommand.trim()
+        runCommand: runCommand.trim(),
+        buildCommand: buildCommand.trim()
       })
     } else {
       const created = await window.api.createTerminal({
@@ -64,7 +66,8 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
         projectPath: projectPath.trim(),
         startCommand: startCommand.trim() || defaultStartCommand,
         autoRunCommand: autoRun,
-        runCommand: runCommand.trim()
+        runCommand: runCommand.trim(),
+        buildCommand: buildCommand.trim()
       })
       if (!created) {
         setError('Could not add terminal — the workspace may have been deleted.')
@@ -121,6 +124,14 @@ export default function TerminalDialog({ workspaceId, terminal, onClose }: Props
             />
             <button onClick={() => void pickScript()}>Browse…</button>
           </div>
+        </label>
+        <label>
+          Build script (F7)
+          <input
+            value={buildCommand}
+            onChange={(e) => setBuildCommand(e.target.value)}
+            placeholder="e.g. build.bat or C:\path\to\build.bat"
+          />
         </label>
         <p className="modal-hint">
           Pressing F5 with this terminal focused runs the script as an external process in the

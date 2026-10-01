@@ -9,6 +9,8 @@ export interface Terminal {
   autoRunCommand: boolean
   /** Script (e.g. a .bat/.ps1 command) run inside this terminal when the user presses F5. Empty = F5 does nothing. */
   runCommand: string
+  /** Script run as an external process when the user presses F7 (build). Empty = F7 does nothing. */
+  buildCommand: string
   order: number
 }
 
@@ -81,6 +83,7 @@ export interface CreateTerminalInput {
   startCommand?: string
   autoRunCommand?: boolean
   runCommand?: string
+  buildCommand?: string
 }
 
 export interface UpdateTerminalInput {
@@ -89,6 +92,7 @@ export interface UpdateTerminalInput {
   startCommand: string
   autoRunCommand: boolean
   runCommand: string
+  buildCommand: string
 }
 
 export interface HookEventPayload {
@@ -132,6 +136,7 @@ export const IPC = {
   // Native confirm before closing a pane with a live session (main-process dialog, Notepad-style).
   terminalConfirmClosePane: 'terminal:confirmClosePane',
   terminalRunScript: 'terminal:runScript',
+  terminalRunBuildScript: 'terminal:runBuildScript',
   terminalPickFolder: 'terminal:pickFolder',
   terminalPickScript: 'terminal:pickScript',
   terminalMarkRead: 'terminal:markRead',
@@ -177,6 +182,7 @@ export interface ImportPreviewEntry {
     startCommand: string
     autoRunCommand?: boolean
     runCommand?: string
+    buildCommand?: string
   }>
 }
 

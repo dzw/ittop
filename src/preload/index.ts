@@ -60,6 +60,8 @@ const api = {
   markTerminalRead: (id: string): Promise<void> => ipcRenderer.invoke(IPC.terminalMarkRead, id),
   runTerminalScript: (id: string): Promise<{ ok: boolean; message: string }> =>
     ipcRenderer.invoke(IPC.terminalRunScript, id),
+  runTerminalBuildScript: (id: string): Promise<{ ok: boolean; message: string }> =>
+    ipcRenderer.invoke(IPC.terminalRunBuildScript, id),
 
   getSettings: (): Promise<AppSettings> => ipcRenderer.invoke(IPC.settingsGet),
   updateSettings: (patch: Partial<AppSettings>): Promise<void> =>

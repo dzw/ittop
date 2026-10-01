@@ -4,6 +4,11 @@ import { useAppStore } from '../store/useAppStore'
 import FilePreviewContent, { fileName } from './FilePreviewContent'
 import FileIcon from './FileIcon'
 
+/** Whether a context-menu row is a batch script that can be assigned as Run/Build script. */
+function isBatFile(name: string): boolean {
+  return name.toLowerCase().endsWith('.bat')
+}
+
 interface Props {
   onClose: () => void
 }
@@ -152,6 +157,32 @@ export default function FileExplorer({ onClose }: Props): React.JSX.Element {
 
   const rootEntries = rootPath ? dirs[rootPath] : undefined
 
+  // Assign a .bat file from the tree as the focused terminal's Run (F5) or Build (F7) script.
+  // The stored path is relative to the terminal's project folder so the assignment survives
+  // moving the project; fall back to the absolute path when the file sits outside it.
+  function setScriptForFocusedTerminal(kind: 'run' | 'build', path: string): void {
+    if (!terminal) return
+    const workspace = workspaces.find((w) => w.terminals.some((t) => t.id === terminal.id))
+    if (!workspace) return
+    const normalizedRoot = rootPath ? rootPath.replace(/[\\/]+$/, '') + '\\' : ''
+    const rel = normalizedRoot && path.toLowerCase().startsWith(normalizedRoot.toLowerCase()) ? path.slice(normalizedRoot.length) : path
+    void window.api.updateTerminal(terminal.id, {
+      name: terminal.name,
+      projectPath: terminal.projectPath,
+      startCommand: terminal.startCommand,
+      autoRunCommand: terminal.autoRunCommand,
+      runCommand: kind === 'run' ? rel : terminal.runCommand,
+      buildCommand: kind === 'build' ? rel : terminal.buildCommand
+    })
+    useAppStore.setState((state) => ({
+      workspaces: state.workspaces.map((w) =>
+        w.id === workspace.id
+          ? { ...w, terminals: w.terminals.map((t) => (t.id === terminal.id ? { ...t, ...(kind === 'run' ? { runCommand: rel } : { buildCommand: rel }) } : t)) }
+          : w
+      )
+    }))
+  }
+
   return (
     <div className="file-panel" style={{ width: filePanelWidth }}>
       <div className="file-panel-resizer" onMouseDown={startResize} />
@@ -241,6 +272,28 @@ export default function FileExplorer({ onClose }: Props): React.JSX.Element {
             >
               Copy path
             </button>
+            {isBatFile(rowMenu.entry.name) && (
+              <>
+                <button
+                  title="Set this .bat as the focused terminal's Run script (F5)"
+                  onClick={() => {
+                    setScriptForFocusedTerminal('run', rowMenu.entry.path)
+                    setRowMenu(null)
+                  }}
+                >
+                  设置为Run
+                </button>
+                <button
+                  title="Set this .bat as the focused terminal's Build script (F7)"
+                  onClick={() => {
+                    setScriptForFocusedTerminal('build', rowMenu.entry.path)
+                    setRowMenu(null)
+                  }}
+                >
+                  设置为Build
+                </button>
+              </>
+            )}
           </div>
         </>
       )}

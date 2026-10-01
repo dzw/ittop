@@ -391,6 +391,7 @@ function registerIpcHandlers(): void {
       startCommand: input.startCommand?.trim() || state.settings.defaultStartCommand || 'claude',
       autoRunCommand: input.autoRunCommand ?? false,
       runCommand: input.runCommand?.trim() ?? '',
+      buildCommand: input.buildCommand?.trim() ?? '',
       order: workspace.terminals.length
     }
     const workspaces = state.workspaces.map((w) =>
@@ -421,7 +422,8 @@ function registerIpcHandlers(): void {
               projectPath: input.projectPath,
               startCommand: input.startCommand,
               autoRunCommand: input.autoRunCommand,
-              runCommand: input.runCommand
+              runCommand: input.runCommand,
+              buildCommand: input.buildCommand
             }
           : t
       )
@@ -703,17 +705,19 @@ function registerIpcHandlers(): void {
     ptyManager.write(terminalId, data)
   })
 
-  // F5 "run script": run the terminal's configured runCommand (e.g. a .bat) as an EXTERNAL
+  // F5 "run script" / F7 "build script": run the terminal's configured runCommand/buildCommand
+  // (e.g. a .bat) as an EXTERNAL
   // child process — never inside the terminal pty. The pty usually holds a running coding
   // agent session; typing a command into it would hand the command to that agent instead of
   // the shell. The script runs in its own process rooted at the terminal's project folder;
   // .bat/.cmd via cmd /c, .ps1 via powershell -File, everything else through the default
   // shell. Output does not appear in the app — success/failure is reported back to the
   // renderer for a toast.
-  ipcMain.handle(IPC.terminalRunScript, (_event, terminalId: string) => {
+  const runExternalScript = (terminalId: string, kind: 'run' | 'build'): { ok: boolean; message: string } | Promise<{ ok: boolean; message: string }> => {
     const found = findTerminal(terminalId)
-    const script = found?.terminal.runCommand?.trim() ?? ''
-    if (!found || script.length === 0) return { ok: false, message: 'No run script set for this terminal.' }
+    const script = (kind === 'run' ? found?.terminal.runCommand : found?.terminal.buildCommand)?.trim() ?? ''
+    if (!found || script.length === 0)
+      return { ok: false, message: kind === 'run' ? 'No run script set for this terminal.' : 'No build script set for this terminal.' }
 
     const cwd = found.terminal.projectPath
     if (!existsSync(cwd)) return { ok: false, message: `Project folder does not exist: ${cwd}` }
@@ -767,7 +771,10 @@ function registerIpcHandlers(): void {
         else settle(false, `${script} exited with code ${code}.`)
       })
     })
-  })
+  }
+
+  ipcMain.handle(IPC.terminalRunScript, (_event, terminalId: string) => runExternalScript(terminalId, 'run'))
+  ipcMain.handle(IPC.terminalRunBuildScript, (_event, terminalId: string) => runExternalScript(terminalId, 'build'))
 
   ipcMain.on(IPC.ptyResize, (_event, terminalId: string, cols: number, rows: number) => {
     ptyManager.resize(terminalId, cols, rows)

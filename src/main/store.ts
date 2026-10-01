@@ -59,7 +59,8 @@ function migrateWorkspace(raw: LegacyWorkspace): Workspace {
   const normalizeTerminal = (t: Terminal): Terminal => ({
     ...t,
     autoRunCommand: typeof t.autoRunCommand === 'boolean' ? t.autoRunCommand : true,
-    runCommand: typeof t.runCommand === 'string' ? t.runCommand : ''
+    runCommand: typeof t.runCommand === 'string' ? t.runCommand : '',
+    buildCommand: typeof t.buildCommand === 'string' ? t.buildCommand : ''
   })
   if (Array.isArray(raw.terminals)) {
     return { id: raw.id, name: raw.name, order: raw.order, terminals: raw.terminals.map(normalizeTerminal) }
@@ -74,6 +75,7 @@ function migrateWorkspace(raw: LegacyWorkspace): Workspace {
             startCommand: raw.startCommand ?? 'claude',
             autoRunCommand: true,
             runCommand: '',
+            buildCommand: '',
             order: 0
           }
         ]
